@@ -9,10 +9,12 @@ STAGED_FILES="$(git diff --cached --name-only)"
 printf "%s\n" "$STAGED_FILES" | grep -qE '^lib/' || exit 0
 printf "%s\n" "$STAGED_FILES" | grep -qE '^lib/pyproject' || exit 0
 
+COMMIT_MSG="$(cat "$MSG_FILE")"
+
 # コミットメッセージにトークンがあるかチェック（大文字小文字無視）
-if grep -qi '\[bump-major\]' "$MSG_FILE"; then
+if grep -qi '\[bump-major\]' "$COMMIT_MSG"; then
   PART="major"
-elif grep -qi '\[bump-minor\]' "$MSG_FILE"; then
+elif grep -qi '\[bump-minor\]' "$COMMIT_MSG"; then
   PART="minor"
 else
   PART="patch"
@@ -22,7 +24,7 @@ if [ -x "$SCRIPT" ]; then
   python3 "$SCRIPT" --file "$PYPROJECT" --part "$PART" || exit 1
   git add "$PYPROJECT"
   # 変更を現在のコミットに含める（フック再実行を防ぐため --no-verify）
-  git commit --no-edit --no-verify -m "$MSG_FILE" || exit 1
+  git commit --no-edit --no-verify -m "$COMMIT_MSG" || exit 1
 fi
 
 exit 0
