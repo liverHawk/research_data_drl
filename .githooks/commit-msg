@@ -7,7 +7,7 @@ SCRIPT="$REPO_ROOT/scripts/bump_version.py"
 # ステージされたファイルに lib/ 以下のファイルがなければ何もしない
 STAGED_FILES="$(git diff --cached --name-only)"
 printf "%s\n" "$STAGED_FILES" | grep -qE '^lib/' || exit 0
-printf "%s\n" "$STAGED_FILES" | grep -qE '^lib/pyproject' || exit 0
+printf "%s\n" "$STAGED_FILES" | grep -qE '^lib/pyproject.toml' || exit 0
 
 COMMIT_MSG="$(cat "$MSG_FILE")"
 
