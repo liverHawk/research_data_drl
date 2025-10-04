@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "myself"
+version = "0.0.1"
+description = "local helper library"
+dependencies = [
+    "coloredlogs>=15.0.1",
+    "tqdm>=4.67.1",
+]

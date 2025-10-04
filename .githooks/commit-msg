@@ -1,0 +1,23 @@
+#!/bin/sh
+MSG_FILE="$1"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+PYPROJECT="$REPO_ROOT/lib/pyproject.toml"
+SCRIPT="$REPO_ROOT/scripts/bump_version.py"
+
+# コミットメッセージにトークンがあるかチェック（大文字小文字無視）
+if grep -qi '\[bump-major\]' "$MSG_FILE"; then
+  PART="major"
+elif grep -qi '\[bump-minor\]' "$MSG_FILE"; then
+  PART="minor"
+else
+  PART="patch"
+fi
+
+if [ -x "$SCRIPT" ]; then
+  python3 "$SCRIPT" --file "$PYPROJECT" --part "$PART" || exit 1
+  git add "$PYPROJECT"
+  # 変更を現在のコミットに含める（フック再実行を防ぐため --no-verify）
+  git commit --amend --no-edit --no-verify || exit 1
+fi
+
+exit 0
