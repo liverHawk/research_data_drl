@@ -5,11 +5,20 @@ PYPROJECT="$REPO_ROOT/lib/pyproject.toml"
 SCRIPT="$REPO_ROOT/scripts/bump_version.py"
 
 # ステージされたファイルに lib/ 以下のファイルがなければ何もしない
+# files=`git status|grep -e "modified" -e "new file"|sed "s/new file:\(.*\)/\1/g"|sed "s/modified:\(.*\)/\1/g"|cut -f 2`
 STAGED_FILES="$(git diff --cached --name-only)"
-printf "%s\n" "$STAGED_FILES" | grep -qE '^lib/' || exit 0
-printf "%s\n" "$STAGED_FILES" | grep -qE '^lib/pyproject.toml' || exit 0
+FLAG=0
+
+for line in $STAGED_FILES; do
+  printf "%s\n" "$line" | grep -qE '^lib/' && FLAG=1 && break
+done
+
+if [ $FLAG -eq 0 ]; then
+  exit 0
+fi
 
 COMMIT_MSG="$(cat "$MSG_FILE")"
+echo "Commit message: $COMMIT_MSG"
 
 # コミットメッセージにトークンがあるかチェック（大文字小文字無視）
 if grep -qi '\[bump-major\]' "$COMMIT_MSG"; then
