@@ -21,7 +21,7 @@ if [ -x "$SCRIPT" ]; then
   python3 "$SCRIPT" --file "$PYPROJECT" --part "$PART" || exit 1
   git add "$PYPROJECT"
   # 変更を現在のコミットに含める（フック再実行を防ぐため --no-verify）
-  git commit --no-edit --no-verify || exit 1
+  git commit --no-edit --no-verify -m "$MSG_FILE" || exit 1
 fi
 
 exit 0
