@@ -1,5 +1,9 @@
 import logging
 import coloredlogs
+import pandas as pd
+import numpy as np
+
+from classifier import NORMALIZE_COLUMNS
 
 
 class BASE:
@@ -210,3 +214,13 @@ def setup_logging(path):
 
     return logger
 
+
+def rolling_normalize(df: pd.DataFrame):
+    X_norm = df.copy()
+    rolling = X_norm[NORMALIZE_COLUMNS].rolling(window=5, min_periods=1)
+    rolling_mean = rolling.mean()
+    rolling_std = rolling.std()
+    X_norm[NORMALIZE_COLUMNS] = (X_norm[NORMALIZE_COLUMNS] - rolling_mean) / rolling_std
+    X_norm[NORMALIZE_COLUMNS].fillna(0.0, inplace=True)
+    X_norm = X_norm.replace([np.inf, -np.inf], 0.0)
+    return X_norm
