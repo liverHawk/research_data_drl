@@ -1,0 +1,123 @@
+import os
+import sys
+import mlflow
+import yaml
+
+from glob import glob
+import pandas as pd
+from utils import setup_logging
+from csv_utils import save_split_csv, multiprocess_save_csv
+
+
+def make_dir():
+    train_binary_path = os.path.abspath(os.path.join("data", "train", "binary"))
+    os.makedirs(train_binary_path, exist_ok=True)
+
+
+def load_params():
+    if len(sys.argv) != 2:
+        print("Usage: python categorical_binary.py <data_path>")
+        sys.exit(1)
+    data_path = sys.argv[1]
+
+    all_params = yaml.safe_load(open("params.yaml"))
+    mlflow.set_tracking_uri(all_params["mlflow"]["tracking_uri"])
+    mlflow.set_experiment(
+        f"{all_params['mlflow']['experiment_name']}_categorical_binary"
+    )
+
+    return all_params["categorical_binary"], data_path
+
+
+def load_data(data_path):
+    files = glob(os.path.join(data_path, "*.csv.gz"))
+    dfs = []
+    for f in files:
+        df = pd.read_csv(f)
+        dfs.append(df)
+    return pd.concat(dfs, ignore_index=True)
+
+
+def change_columns(df, logger):
+    """
+    Seriesを一気にフォーマットして文字列にし、各文字を個別の列として保存
+    """
+    new_df = df.copy()
+    
+    # Labelカラムは除外
+    feature_columns = [
+        {"type": "Destination Port", "max": 65535},
+        {"type": "Protocol", "max": 255}
+    ]
+
+    for col in feature_columns:
+        col_name = col["type"]
+        
+        # 数値型でない場合はスキップ
+        if not pd.api.types.is_numeric_dtype(df[col_name]):
+            continue
+            
+        # 整数値に変換（小数点以下は切り捨て）
+        int_values = df[col_name].astype(int)
+
+        # 最大値から必要な桁数を決定
+        max_val = col["max"]
+        max_val_binary = format(max_val, 'b')
+        num_digits = len(max_val_binary)
+        
+        # Series全体を一気に2進数文字列にフォーマット（ゼロパディング）  
+        binary_strings = int_values.apply(lambda x: format(x, f'0{num_digits}b'))
+        
+        # 各文字位置を個別の列として作成
+        for char_pos in range(num_digits):
+            bit_col_name = f"{col_name}_{char_pos}"
+            # 各文字列の指定位置の文字を取得して整数に変換
+            new_df[bit_col_name] = binary_strings.str[char_pos].astype(int)
+        
+        # 元の列を削除
+        new_df = new_df.drop(columns=[col_name])
+
+        logger.info(f"列 '{col_name}' を {num_digits} 文字に分割しました")
+
+    return new_df
+
+
+def save_csv(df, logger):
+    path = os.path.abspath(
+        os.path.join("data", "train", "binary")
+    )
+    binary_array = save_split_csv(
+        df,
+        path,
+        "train_binary",
+    )
+    binary_array_df = [df for df, _ in binary_array]
+    binary_array_path = [path for _, path in binary_array]
+
+    logger.info("Start saving CSV files")
+    multiprocess_save_csv(binary_array_df, binary_array_path)
+
+
+def main():
+    make_dir()
+    params, data_path = load_params()
+    logger = setup_logging(
+        os.path.join("log", "categorical_binary.log")
+    )
+    mlflow.start_run()
+
+    logger.info(f"Loading data from {data_path}")
+    df = load_data(data_path)
+    logger.info(f"Data loaded with shape: {df.shape}")
+
+    logger.info("Start categorical to binary conversion")
+    df = change_columns(df, logger)
+    logger.info(f"Categorical to binary conversion finished with shape: {df.shape}")
+    save_csv(df, logger)
+    
+    mlflow.end_run()
+
+
+
+if __name__ == "__main__":
+    main()
