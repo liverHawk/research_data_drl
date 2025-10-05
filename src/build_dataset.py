@@ -27,6 +27,9 @@ def make_dir():
         os.path.join(path, "test"), exist_ok=True
     )
     os.makedirs(
+        os.path.join(path, "test", "raw"), exist_ok=True
+    )
+    os.makedirs(
         os.path.join(path, "..", "log"), exist_ok=True
     )
 
@@ -105,7 +108,7 @@ def column_adjustment(df):
 
 def save_csv(train_df, test_df, logger):
     train_path = os.path.abspath(os.path.join("data", "train", "raw"))
-    test_path = os.path.abspath(os.path.join("data", "test"))
+    test_path = os.path.abspath(os.path.join("data", "test", "raw"))
 
     train_array = save_split_csv(
         train_df,

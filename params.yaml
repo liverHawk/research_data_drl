@@ -1,0 +1,20 @@
+dataset_name: CICIDS2017_improved
+
+mlflow:
+  tracking_uri: http://127.0.0.1:5000
+  experiment_name: research_dataset
+
+build_dataset:
+  test_size: 0.3
+  random_state: 42
+
+categorical_binary:
+  binary: True
+
+train:
+  data_path: data/train/binary
+  model_type: RandomForest
+
+evaluate:
+  data_path: data/test/binary
+  plot: True

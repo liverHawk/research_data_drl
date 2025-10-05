@@ -1,0 +1,46 @@
+params:
+  - mlflow.tracking_uri
+  - mlflow.experiment_name
+
+stages:
+  build_dataset:
+    cmd: uv run src/build_dataset.py data/${dataset_name}
+    deps:
+      - src/build_dataset.py
+      - data/${dataset_name}
+    outs:
+      - log/build_dataset.log
+      - data/train/raw
+      - data/test/raw
+    params:
+      - dataset_name
+  categorical_binary:
+    cmd: uv run src/categorical_binary.py
+    deps:
+      - src/categorical_binary.py
+      - data/train/raw
+      - data/test/raw
+    outs:
+      - log/categorical_binary.log
+      - data/train/binary
+      - data/test/binary
+  train:
+    cmd: uv run src/train.py ${train.data_path}
+    deps:
+      - src/train.py
+      - ${train.data_path}
+    params:
+      - train.data_path
+    outs:
+      - log/train.log
+      - model/improved_c45_model.joblib
+  evaluate:
+    cmd: uv run src/evaluate.py ${evaluate.data_path}
+    deps:
+      - src/evaluate.py
+      - model/improved_c45_model.joblib
+      - ${evaluate.data_path}
+    params:
+      - evaluate.data_path
+    outs:
+      - log/evaluate.log

@@ -12,25 +12,22 @@ from csv_utils import save_split_csv, multiprocess_save_csv
 def make_dir():
     train_binary_path = os.path.abspath(os.path.join("data", "train", "binary"))
     os.makedirs(train_binary_path, exist_ok=True)
+    test_binary_path = os.path.abspath(os.path.join("data", "test", "binary"))
+    os.makedirs(test_binary_path, exist_ok=True)
 
 
 def load_params():
-    if len(sys.argv) != 2:
-        print("Usage: python categorical_binary.py <data_path>")
-        sys.exit(1)
-    data_path = sys.argv[1]
-
     all_params = yaml.safe_load(open("params.yaml"))
     mlflow.set_tracking_uri(all_params["mlflow"]["tracking_uri"])
     mlflow.set_experiment(
         f"{all_params['mlflow']['experiment_name']}_categorical_binary"
     )
 
-    return all_params["categorical_binary"], data_path
+    return all_params["categorical_binary"]
 
 
-def load_data(data_path):
-    files = glob(os.path.join(data_path, "*.csv.gz"))
+def load_data(_type="train"):
+    files = glob(os.path.join(f"data/{_type}/raw", "*.csv.gz"))
     dfs = []
     for f in files:
         df = pd.read_csv(f)
@@ -82,14 +79,14 @@ def change_columns(df, logger):
     return new_df
 
 
-def save_csv(df, logger):
+def save_csv(df, logger, _type="train"):
     path = os.path.abspath(
-        os.path.join("data", "train", "binary")
+        os.path.join("data", _type, "binary")
     )
     binary_array = save_split_csv(
         df,
         path,
-        "train_binary",
+        f"{_type}_binary",
     )
     binary_array_df = [df for df, _ in binary_array]
     binary_array_path = [path for _, path in binary_array]
@@ -100,20 +97,29 @@ def save_csv(df, logger):
 
 def main():
     make_dir()
-    params, data_path = load_params()
+    params = load_params()
     logger = setup_logging(
         os.path.join("log", "categorical_binary.log")
     )
     mlflow.start_run()
 
-    logger.info(f"Loading data from {data_path}")
-    df = load_data(data_path)
+    logger.info(f"Loading data from data/train/raw")
+    df = load_data()
     logger.info(f"Data loaded with shape: {df.shape}")
 
     logger.info("Start categorical to binary conversion")
     df = change_columns(df, logger)
     logger.info(f"Categorical to binary conversion finished with shape: {df.shape}")
     save_csv(df, logger)
+
+    logger.info("Loading data from data/test/raw")
+    df = load_data(_type="test")
+    logger.info(f"Data loaded with shape: {df.shape}")
+
+    logger.info("Start categorical to binary conversion")
+    df = change_columns(df, logger)
+    logger.info(f"Categorical to binary conversion finished with shape: {df.shape}")
+    save_csv(df, logger, _type="test")
     
     mlflow.end_run()
 

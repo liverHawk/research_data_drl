@@ -1,0 +1,10 @@
+0	BENIGN
+1	Botnet
+2	DDoS
+3	DoS
+4	FTP-Patator
+5	Heartbleed
+6	Infiltration
+7	Portscan
+8	SSH-Patator
+9	Web Attack
