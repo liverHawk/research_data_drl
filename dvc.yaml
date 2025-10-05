@@ -44,3 +44,39 @@ stages:
       - evaluate.data_path
     outs:
       - log/evaluate.log
+  train_drl:
+    cmd: uv run src/train_drl.py ${train.data_path}
+    deps:
+      - src/train_drl.py
+      - ${train.data_path}
+    params:
+      - train.data_path
+      - train_drl.protocol_dim
+      - train_drl.port_dim
+      - train_drl.update_target_steps
+      - train_drl.batch_size
+      - train_drl.gamma
+      - train_drl.eps_start
+      - train_drl.eps_end
+      - train_drl.eps_decay
+      - train_drl.tau
+      - train_drl.lr
+      - train_drl.memory_size
+      - train_drl.n_episodes
+      - train_drl.sample_size
+    outs:
+      - log/train_drl.log
+      - log/train_result.log
+      - model/drl_model.pth
+  evaluate_drl:
+    cmd: uv run src/evaluate_drl.py ${evaluate.data_path}
+    deps:
+      - src/evaluate_drl.py
+      - model/drl_model.pth
+      - ${evaluate.data_path}
+    params:
+      - evaluate.data_path
+      - evaluate.plot
+    outs:
+      - log/evaluate_drl.log
+      - evaluate/plots
