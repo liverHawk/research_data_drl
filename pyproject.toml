@@ -4,4 +4,11 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "mlflow>=3.4.0",
+    "myself>=0.1",
+]
+
+[tool.uv.sources]
+myself = { path = "lib" }
+
