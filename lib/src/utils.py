@@ -2,7 +2,6 @@ import logging
 import coloredlogs
 
 
-
 class BASE:
     def __init__(self):
         self.features_labels = [
@@ -210,3 +209,4 @@ def setup_logging(path):
     logger.addHandler(fh)
 
     return logger
+
