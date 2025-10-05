@@ -10,6 +10,7 @@ STAGED_FILES="$(git diff --cached --name-only)"
 FLAG=0
 
 for line in $STAGED_FILES; do
+  printf "%s\n" "$line" | grep -qE '^lib/uv.lock' && continue
   printf "%s\n" "$line" | grep -qE '^lib/' && FLAG=1 && break
 done
 
