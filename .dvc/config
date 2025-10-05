@@ -1,0 +1,5 @@
+[core]
+    remote = origin
+    autostage = true
+['remote "origin"']
+    url = gdrive://10Zlj6sg3Nov98x3_QWvwMVG09_QCKSM6/research_data_drl
