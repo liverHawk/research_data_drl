@@ -1,4 +1,6 @@
 import joblib
+
+import numpy as np
 import pandas as pd
 
 from sklearn.tree import DecisionTreeClassifier
@@ -112,7 +114,8 @@ class ImprovedC45:
         self.rolling_mean = rolling.mean()
         self.rolling_std = rolling.std()
         X_norm[NORMALIZE_COLUMNS] = (X_norm[NORMALIZE_COLUMNS] - self.rolling_mean) / self.rolling_std
-        X_norm[NORMALIZE_COLUMNS].fillna(0, inplace=True)
+        X_norm[NORMALIZE_COLUMNS].fillna(0.0, inplace=True)
+        X_norm = X_norm.replace([np.inf, -np.inf], 0.0)
         return X_norm
 
     def fit(self, X: pd.DataFrame, y):
