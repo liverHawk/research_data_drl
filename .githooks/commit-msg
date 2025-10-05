@@ -33,7 +33,7 @@ fi
 if [ -x "$SCRIPT" ]; then
   python3 "$SCRIPT" --file "$PYPROJECT" --part "$PART" || exit 1
   uv sync || exit 1
-  git add "$PYPROJECT"
+  git add "$PYPROJECT" "$REPO_ROOT/lib/uv.lock"
   # 変更を現在のコミットに含める（フック再実行を防ぐため --no-verify）
   git commit --no-edit --no-verify -m "$COMMIT_MSG" || exit 1
 fi

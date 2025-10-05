@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "myself"
-version = "0.0.6"
+version = "0.0.7"
 description = "local helper library"
 requires-python = ">=3.10"
 dependencies = [
@@ -12,6 +12,8 @@ dependencies = [
     "joblib>=1.5.2",
     "pandas>=2.3.3",
     "scikit-learn>=1.7.2",
+    "seaborn>=0.13.2",
+    "shap>=0.48.0",
     "torch>=2.8.0",
     "tqdm>=4.67.1",
 ]
