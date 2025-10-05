@@ -36,4 +36,5 @@ if [ -x "$SCRIPT" ]; then
   git commit --no-edit --no-verify -m "$COMMIT_MSG" || exit 1
 fi
 
+
 exit 0
