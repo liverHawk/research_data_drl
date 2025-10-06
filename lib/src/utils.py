@@ -216,6 +216,7 @@ def setup_logging(path):
 
 
 def rolling_normalize(df: pd.DataFrame):
+    pd.options.mode.copy_on_write = True  # Suppress SettingWithCopyWarning
     X_norm = df.copy()
     rolling = X_norm[NORMALIZE_COLUMNS].rolling(window=5, min_periods=1)
     rolling_mean = rolling.mean()

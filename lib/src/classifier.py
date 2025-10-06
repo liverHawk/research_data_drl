@@ -109,6 +109,7 @@ class ImprovedC45:
         self.rolling_std = None
     
     def _rolling_normalize(self, X: pd.DataFrame):
+        pd.options.mode.copy_on_write = True  # Suppress SettingWithCopyWarning
         X_norm = X.copy()
         rolling = X_norm[NORMALIZE_COLUMNS].rolling(window=5, min_periods=1)
         self.rolling_mean = rolling.mean()
