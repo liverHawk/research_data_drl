@@ -3,3 +3,5 @@
 /train.log
 /evaluate.log
 /evaluate_drl.log
+/train_drl.log
+/train_result.log
