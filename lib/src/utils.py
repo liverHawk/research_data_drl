@@ -216,12 +216,26 @@ def setup_logging(path):
 
 
 def rolling_normalize(df: pd.DataFrame):
-    pd.options.mode.copy_on_write = True  # Suppress SettingWithCopyWarning
+    # 安全に処理：対象カラムが存在しない場合は元データを返す
     X_norm = df.copy()
-    rolling = X_norm[NORMALIZE_COLUMNS].rolling(window=5, min_periods=1)
+    cols = [c for c in NORMALIZE_COLUMNS if c in X_norm.columns]
+    if not cols:
+        return X_norm
+
+    # 非数値を NaN にしておく（後で fillna で 0 に戻す）
+    X_norm[cols] = X_norm[cols].apply(pd.to_numeric, errors="coerce")
+
+    # ddof=0 (母分散) を使い、単一サンプルでの NaN 発生を抑える
+    rolling = X_norm[cols].rolling(window=5, min_periods=1)
     rolling_mean = rolling.mean()
-    rolling_std = rolling.std()
-    X_norm[NORMALIZE_COLUMNS] = (X_norm[NORMALIZE_COLUMNS] - rolling_mean) / rolling_std
-    X_norm[NORMALIZE_COLUMNS].fillna(0.0, inplace=True)
+    rolling_std = rolling.std(ddof=0)
+
+    # 0 による除算を避けるため、分母の 0 を一旦 NaN に置換
+    denom = rolling_std.replace(0, np.nan)
+
+    X_norm[cols] = (X_norm[cols] - rolling_mean) / denom
+
+    # 最終的に NaN/inf を 0 に置換
+    X_norm[cols] = X_norm[cols].fillna(0.0)
     X_norm = X_norm.replace([np.inf, -np.inf], 0.0)
     return X_norm
