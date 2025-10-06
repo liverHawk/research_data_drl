@@ -9,11 +9,11 @@ from itertools import count
 from glob import glob
 from tqdm import tqdm
 
-from flow_package import to_tensor
+import flow_package as fp
 from flow_package.multi_flow_env import MultiFlowEnv, InputType
 
 from utils import setup_logging, rolling_normalize
-from network import DeepFlowNetwork
+from network import DeepFlowNetwork, DeepFlowNetworkV2
 
 # 追加インポート: mlflow とプロットユーティリティ
 import mlflow
@@ -65,6 +65,13 @@ def write_result(cm_memory, prefix):
     return cm, accuracy, cm_path
 
 
+def to_tensor(state, include_category=True):
+    if include_category:
+        return fp.to_tensor(state)
+    else:
+        return torch.tensor(state)
+
+
 def test(df, params):
     input = InputType(
         data=df,
@@ -74,10 +81,19 @@ def test(df, params):
     )
     env = MultiFlowEnv(input)
 
-    network = DeepFlowNetwork(
-        n_inputs=env.observation_space.shape[0],
-        n_outputs=env.action_space.n,
-    )
+    include_category = params.get("include_category", True)
+
+    if include_category:
+        network = DeepFlowNetwork(
+            n_inputs=env.observation_space.shape[0],
+            n_outputs=env.action_space.n,
+        )
+    else:
+        network = DeepFlowNetworkV2(
+            n_inputs=env.observation_space.shape[0],
+            n_outputs=env.action_space.n,
+        )
+
     path = os.path.join("model", "drl_model.pth")
     network.load_state_dict(torch.load(path))
     network.eval()

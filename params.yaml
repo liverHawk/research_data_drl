@@ -36,3 +36,6 @@ train_drl:
   memory_size: 100000
   n_episodes: 100
   sample_size: 10000
+
+evaluate_drl:
+  include_category: True

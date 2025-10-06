@@ -58,6 +58,11 @@ from network import DeepFlowNetwork, DeepFlowNetworkV2
 from deep_learn import ReplayMemory, Transaction
 
 # ========================
+# 普遍変数設定
+# ========================
+F_LOSS = nn.MSELoss()
+
+# ========================
 # デバイス設定
 # ========================
 if torch.cuda.is_available():
@@ -70,8 +75,6 @@ else:
 # ========================
 # ディレクトリ作成
 # ========================
-
-
 def make_dirs():
     os.makedirs("train/plots", exist_ok=True)
     os.makedirs("train", exist_ok=True)
@@ -96,15 +99,16 @@ def load_params():
     params = all_params["train_drl"]
     return params, input_path
 
+
+# ========================
+# データのロード・正規化
+# ========================
 def load_csv(input):
     files = glob(os.path.join(input, "*.csv.gz"))
     df = pd.concat([
         pd.read_csv(f) for f in files
     ])
 
-# ========================
-# データのロード・正規化
-# ========================
     df = df.reset_index(drop=True)
 
     # 特徴量の正規化
@@ -113,15 +117,17 @@ def load_csv(input):
     return df
 
 
-def _unpack_state_batch(state_batch):
-    port = torch.cat([s[0] for s in state_batch])
-    protocol = torch.cat([s[1] for s in state_batch])
-    features = torch.cat([s[2] for s in state_batch])
-    return [port, protocol, features]
-
 # ========================
 # バッチ状態のアンパック
 # ========================
+def _unpack_state_batch(state_batch, include_category=False):
+    if include_category:
+        port = torch.cat([s[0] for s in state_batch])
+        protocol = torch.cat([s[1] for s in state_batch])
+        features = torch.cat([s[2] for s in state_batch])
+        return [port, protocol, features]
+    else:
+        return torch.tensor(state_batch, device=device)
 
 
 def select_action(state_tensor: torch.Tensor, params: SelectActionParams):
@@ -146,79 +152,52 @@ def optimize_model(params: OptimizeModelParams):
     """
     経験リプレイからバッチをサンプリングし、Qネットワークを最適化
     """
-    if len(params.memory) < params.BATCH_SIZE:
-        return None
-    # バッチサンプリング
     transitions = params.memory.sample(params.BATCH_SIZE)
     batch = Transaction(*zip(*transitions))
-    # 状態バッチをデバイスへ
-    state_batch = _unpack_state_batch(batch.state)
-    try:
-        state_batch = [s.to(device) for s in state_batch]
-    except Exception:
-        pass
-    # 行動・報酬バッチ
+    state_batch = _unpack_state_batch(batch.state, params.include_category)
+
+    state_batch = [s.to(device) for s in state_batch]
     action_batch = torch.cat(batch.action).to(device).long()
-    try:
-        reward_batch = torch.cat([r.view(-1) for r in batch.reward]).to(device).float()
-    except Exception:
-        reward_batch = torch.tensor([float(r) for r in batch.reward], dtype=torch.float32, device=device)
-    # 次状態バッチ
+    reward_batch = torch.cat([r.view(-1) for r in batch.reward]).to(device).float()
+
     non_final_mask = torch.tensor([s is not None for s in batch.next_state], device=device, dtype=torch.bool)
     non_final_next_states = [s for s in batch.next_state if s is not None]
-    if non_final_next_states:
-        next_state_batch = _unpack_state_batch(non_final_next_states)
-        try:
-            next_state_batch = [s.to(device) for s in next_state_batch]
-        except Exception:
-            pass
-    else:
-        next_state_batch = None
+    next_state_batch = _unpack_state_batch(non_final_next_states, params.include_category)
+
+    def _calculate_loss():
+        state_action_values = params.policy_net(state_batch).gather(1, action_batch)
+        next_state_values = torch.zeros(params.BATCH_SIZE, device=device)
+        if next_state_batch is not None:
+            with torch.no_grad():
+                next_state_values[non_final_mask] = params.target_net(next_state_batch).max(1).values.float()
+        expected_state_action_values = reward_batch + params.GAMMA * next_state_values
+        loss = F_LOSS(state_action_values, expected_state_action_values.unsqueeze(1))
+        return loss
 
     # 損失計算・最適化
     if params.scaler is not None:
         with autocast(device_type=device.type):
-            state_action_values = params.policy_net(state_batch).gather(1, action_batch)
-            next_state_values = torch.zeros(params.BATCH_SIZE, device=device)
-            if next_state_batch is not None:
-                with torch.no_grad():
-                    next_state_values[non_final_mask] = params.target_net(next_state_batch).max(1).values.float()
-            expected_state_action_values = reward_batch + params.GAMMA * next_state_values
-            loss = nn.MSELoss()(state_action_values, expected_state_action_values.unsqueeze(1))
+            loss = _calculate_loss()
         params.optimizer.zero_grad()
         params.scaler.scale(loss).backward()
         utils.clip_grad_value_(params.policy_net.parameters(), 1000)
         params.scaler.step(params.optimizer)
         params.scaler.update()
     else:
-        state_action_values = params.policy_net(state_batch).gather(1, action_batch)
-        next_state_values = torch.zeros(params.BATCH_SIZE, device=device)
-        if next_state_batch is not None:
-            with torch.no_grad():
-                next_state_values[non_final_mask] = params.target_net(next_state_batch).max(1).values
-        expected_state_action_values = reward_batch + params.GAMMA * next_state_values
-        loss = nn.MSELoss()(state_action_values, expected_state_action_values.unsqueeze(1))
+        loss = _calculate_loss()
         params.optimizer.zero_grad()
-        loss.backward()
         utils.clip_grad_value_(params.policy_net.parameters(), 1000)
+        loss.backward()
         params.optimizer.step()
     return loss.item()
 
 
-def get_args(params):
-    select_params = SelectActionParams(
-        EPS_END=params.get("eps_end", 0.05),
-        EPS_START=params.get("eps_start", 0.9),
-        EPS_DECAY=params.get("eps_decay", 200),
-        # policy_net, n_actions, steps_doneは後でセット
-    )
-    optimize_params = OptimizeModelParams(
-        BATCH_SIZE=params.get("batch_size", 128),
-        GAMMA=params.get("gamma", 0.999),
-        # memory, policy_net, target_net, optimizer, scalerは後でセット
-        scaler=GradScaler()
-    )
-    return select_params, optimize_params
+def to_tensor(state, include_category=True):
+    global device
+    if include_category:
+        return fp.to_tensor(state, device=device)
+    else:
+        return torch.tensor(state, device=device)
 
 
 def write_result(cm_memory, episode, n_output):
@@ -289,17 +268,26 @@ def train(df, params):
         "last_cm": None
     }
 
-    select_params, optimize_params = get_args(params)
     optimizer = optim.Adam(policy_net.parameters(), lr=params["lr"])
     memory = ReplayMemory(params["memory_size"])
 
-    select_params.policy_net = policy_net
-    select_params.n_actions = n_actions
-
-    optimize_params.memory = memory
-    optimize_params.policy_net = policy_net
-    optimize_params.target_net = target_net
-    optimize_params.optimizer = optimizer
+    # select_params, optimize_params = get_args(params, )
+    select_params = SelectActionParams(
+        EPS_END=params.get("eps_end", 0.05),
+        EPS_START=params.get("eps_start", 0.9),
+        EPS_DECAY=params.get("eps_decay", 200),
+        policy_net=policy_net,
+        n_actions=n_actions
+    )
+    optimize_params = OptimizeModelParams(
+        BATCH_SIZE=params.get("batch_size", 128),
+        GAMMA=params.get("gamma", 0.999),
+        memory=memory,
+        policy_net=policy_net,
+        target_net=target_net,
+        optimizer=optimizer,
+        scaler=GradScaler() if torch.cuda.is_available() else None
+    )
 
 
     for i_episode in tqdm(range(params["n_episodes"])):
@@ -307,10 +295,7 @@ def train(df, params):
 
         initial_state = env.reset()
 
-        if include_category:
-            state = fp.to_tensor(initial_state, device=device)
-        else:
-            state = torch.tensor(initial_state, device=device)
+        state = to_tensor(initial_state, include_category)
 
         episode_reward = 0.0
         episode_losses = []
@@ -332,16 +317,14 @@ def train(df, params):
                 info["answer"],
             ])
 
-            if include_category:
-                next_state = fp.to_tensor(raw_next_state, device=device) if not terminated else None
-            else:
-                next_state = torch.tensor(raw_next_state, device=device) if not terminated else None
+            next_state = to_tensor(raw_next_state, include_category) if not terminated else None
             memory.push(state, action, next_state, preserve_reward)
             state = next_state
 
-            loss = optimize_model(optimize_params)
-            if loss is not None:
+            if len(memory) > params.get("batch_size", 128):
+                loss = optimize_model(optimize_params)
                 episode_losses.append(loss)
+            
             episode_steps += 1
 
             if terminated:

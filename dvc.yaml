@@ -78,6 +78,7 @@ stages:
     params:
       - evaluate.data_path
       - evaluate.plot
+      - evaluate_drl.include_category
     outs:
       - log/evaluate_drl.log
       - evaluate/plots
