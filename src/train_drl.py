@@ -54,14 +54,14 @@ import flow_package as fp
 from flow_package.multi_flow_env import MultiFlowEnv, InputType
 
 from utils import setup_logging, rolling_normalize
-from network import DeepFlowNetwork
+from network import DeepFlowNetwork, DeepFlowNetworkV2
 from deep_learn import ReplayMemory, Transaction
 
 # ========================
 # デバイス設定
 # ========================
 if torch.cuda.is_available():
-    device = torch.device("cuda")
+    device = torch.device("cuda:3")
 elif torch.mps.is_available():
     device = torch.device("mps")
 else:
@@ -265,9 +265,17 @@ def train(df, params):
     n_states = env.observation_space.shape[0]
     n_actions = env.action_space.n
 
+    include_category = params.get("include_category", True)
+
     logger.info(f"State space: {n_states}, Action space: {n_actions}")
-    policy_net = DeepFlowNetwork(n_states, n_actions).to(device)
-    target_net = DeepFlowNetwork(n_states, n_actions).to(device)
+
+    if include_category:
+        policy_net = DeepFlowNetwork(n_states, n_actions).to(device)
+        target_net = DeepFlowNetwork(n_states, n_actions).to(device)
+    else:
+        policy_net = DeepFlowNetworkV2(n_states, n_actions).to(device)
+        target_net = DeepFlowNetworkV2(n_states, n_actions).to(device)
+
     target_net.load_state_dict(policy_net.state_dict())
 
     cm_memory = []
@@ -293,17 +301,16 @@ def train(df, params):
     optimize_params.target_net = target_net
     optimize_params.optimizer = optimizer
 
-    include_category = params.get("include_category", False)
 
     for i_episode in tqdm(range(params["n_episodes"])):
         random.seed(i_episode)
 
         initial_state = env.reset()
 
-        if not include_category:
-            state = torch.tensor(initial_state, device=device)
-        else:
+        if include_category:
             state = fp.to_tensor(initial_state, device=device)
+        else:
+            state = torch.tensor(initial_state, device=device)
 
         episode_reward = 0.0
         episode_losses = []
@@ -325,10 +332,10 @@ def train(df, params):
                 info["answer"],
             ])
 
-            if not include_category:
-                next_state = torch.tensor(raw_next_state, device=device) if not terminated else None
-            else:
+            if include_category:
                 next_state = fp.to_tensor(raw_next_state, device=device) if not terminated else None
+            else:
+                next_state = torch.tensor(raw_next_state, device=device) if not terminated else None
             memory.push(state, action, next_state, preserve_reward)
             state = next_state
 
