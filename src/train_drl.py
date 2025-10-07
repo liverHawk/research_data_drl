@@ -11,6 +11,7 @@ class OptimizeModelParams:
     target_net: object = None
     optimizer: object = None
     scaler: object = None
+    include_category: bool = True  # カテゴリ変数を含むかどうか
 
 # ========================
 # 行動選択用パラメータの型定義
@@ -121,13 +122,25 @@ def load_csv(input):
 # バッチ状態のアンパック
 # ========================
 def _unpack_state_batch(state_batch, include_category=False):
+    """
+    state_batch: list of states (each state は include_category=True の場合 (port, protocol, features) のタプル)
+    -> バッチごとに (batch_size, n_states) の 2D Tensor を返す（float32, device に移動）
+    """
+    # state_batch が空の可能性は呼び出し元で弾く想定
     if include_category:
-        port = torch.cat([s[0] for s in state_batch])
-        protocol = torch.cat([s[1] for s in state_batch])
-        features = torch.cat([s[2] for s in state_batch])
-        return [port, protocol, features]
+        # 各サンプルごとに要素を結合して1次元ベクトルにし、それを stack して (B, n_states) にする
+        per_samples = []
+        for s in state_batch:
+            # s[0], s[1], s[2] がテンソルである前提
+            a = s[0].view(-1)
+            b = s[1].view(-1)
+            c = s[2].view(-1)
+            per_samples.append(torch.cat([a, b, c], dim=0))
+        return torch.stack(per_samples, dim=0).to(device).float()
     else:
-        return torch.tensor(state_batch, device=device)
+        # 非カテゴリ版も各サンプルを stack して (B, n_states) に
+        per_samples = [s.view(-1) for s in state_batch]
+        return torch.stack(per_samples, dim=0).to(device).float()
 
 
 def select_action(state_tensor: torch.Tensor, params: SelectActionParams):
@@ -139,7 +152,11 @@ def select_action(state_tensor: torch.Tensor, params: SelectActionParams):
     # state_tensorはリスト形式（[port, protocol, other]）
     if sample > eps_threshold:
         with torch.no_grad():
-            return params.policy_net(state_tensor).max(1).indices.view(1, 1)
+            q_vals = params.policy_net(state_tensor)
+            # ネットワークが (n_actions,) を返す場合にバッチ次元 (1, n_actions) を追加
+            if q_vals.dim() == 1:
+                q_vals = q_vals.unsqueeze(0)
+            return q_vals.max(1).indices.view(1, 1)
     else:
         return torch.tensor(
             [[random.randrange(params.n_actions)]],
@@ -154,22 +171,29 @@ def optimize_model(params: OptimizeModelParams):
     """
     transitions = params.memory.sample(params.BATCH_SIZE)
     batch = Transaction(*zip(*transitions))
+    # バッチを (B, n_states) のテンソルに変換（float32, device）
     state_batch = _unpack_state_batch(batch.state, params.include_category)
 
-    state_batch = [s.to(device) for s in state_batch]
     action_batch = torch.cat(batch.action).to(device).long()
     reward_batch = torch.cat([r.view(-1) for r in batch.reward]).to(device).float()
 
     non_final_mask = torch.tensor([s is not None for s in batch.next_state], device=device, dtype=torch.bool)
     non_final_next_states = [s for s in batch.next_state if s is not None]
-    next_state_batch = _unpack_state_batch(non_final_next_states, params.include_category)
+
+    # next_state_batch が空の場合は None にして処理をスキップする
+    if len(non_final_next_states) > 0:
+        next_state_batch = _unpack_state_batch(non_final_next_states, params.include_category)
+    else:
+        next_state_batch = None
 
     def _calculate_loss():
+        # policy_net は (B, n_states) を受け取り (B, n_actions) を返す想定
         state_action_values = params.policy_net(state_batch).gather(1, action_batch)
         next_state_values = torch.zeros(params.BATCH_SIZE, device=device)
         if next_state_batch is not None:
             with torch.no_grad():
-                next_state_values[non_final_mask] = params.target_net(next_state_batch).max(1).values.float()
+                next_q = params.target_net(next_state_batch)
+                next_state_values[non_final_mask] = next_q.max(1).values.float()
         expected_state_action_values = reward_batch + params.GAMMA * next_state_values
         loss = F_LOSS(state_action_values, expected_state_action_values.unsqueeze(1))
         return loss
@@ -197,7 +221,7 @@ def to_tensor(state, include_category=True):
     if include_category:
         return fp.to_tensor(state, device=device)
     else:
-        return torch.tensor(state, device=device)
+        return torch.tensor(state, device=device, dtype=torch.float32)
 
 
 def write_result(cm_memory, episode, n_output):
@@ -286,7 +310,8 @@ def train(df, params):
         policy_net=policy_net,
         target_net=target_net,
         optimizer=optimizer,
-        scaler=GradScaler() if torch.cuda.is_available() else None
+        scaler=GradScaler() if torch.cuda.is_available() else None,
+        include_category=include_category
     )
 
 
