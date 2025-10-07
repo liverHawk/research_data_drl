@@ -9,6 +9,8 @@ dependencies = [
     "myself>=0.1",
     "flow-package",
     "torch>=2.8.0",
+    "ipykernel>=6.30.1",
+    "torchvision>=0.23.0",
 ]
 
 [tool.uv.sources]
