@@ -109,6 +109,7 @@ class ImprovedC45:
         self.rolling_std = None
     
     # ...existing code...
+    @staticmethod
     def _rolling_normalize(df: pd.DataFrame):
         # 安全に処理：対象カラムが存在しない場合は元データを返す
         X_norm = df.copy()
