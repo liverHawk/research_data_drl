@@ -10,82 +10,82 @@ stages:
       nfiles: 5
     - path: src/build_dataset.py
       hash: md5
-      md5: 7a84217a2c62237110fe1d1173baf23b
-      size: 4367
+      md5: 164cafae32a94d90b1a75c2e964dc637
+      size: 4902
     params:
       params.yaml:
         dataset_name: CICIDS2017_improved
     outs:
     - path: data/test/raw
       hash: md5
-      md5: 3f777f58a5240b2df4319a12fd2a177a.dir
-      size: 61348470
+      md5: 8120555beb065943fd62f635ff727354.dir
+      size: 61306713
       nfiles: 7
     - path: data/train/raw
       hash: md5
-      md5: 736a4a965ee8ef41c561057179625b8d.dir
-      size: 143173424
+      md5: 77b679e6b7511d009cd702eafeebcee1.dir
+      size: 143222048
       nfiles: 15
     - path: log/build_dataset.log
       hash: md5
-      md5: 98a46eccef007a56fabc6a6961626315
-      size: 503
+      md5: d666e1d724aa67c2351276dbe5fb8ed8
+      size: 435
   categorical_binary:
     cmd: uv run src/categorical_binary.py
     deps:
     - path: data/test/raw
       hash: md5
-      md5: 3f777f58a5240b2df4319a12fd2a177a.dir
-      size: 61348470
+      md5: 8120555beb065943fd62f635ff727354.dir
+      size: 61306713
       nfiles: 7
     - path: data/train/raw
       hash: md5
-      md5: 736a4a965ee8ef41c561057179625b8d.dir
-      size: 143173424
+      md5: 77b679e6b7511d009cd702eafeebcee1.dir
+      size: 143222048
       nfiles: 15
     - path: src/categorical_binary.py
       hash: md5
-      md5: 7d4dc47fc9f3618609b20f4028265a66
-      size: 3867
+      md5: cb2151b59fcbde472a98cb2f373d1d60
+      size: 4445
     outs:
     - path: data/test/binary
       hash: md5
-      md5: da3ef10054d2c6897a99114225c039f4.dir
-      size: 62498355
+      md5: bd657138dfbed4f02a7293962b2bdcb9.dir
+      size: 62455662
       nfiles: 7
     - path: data/train/binary
       hash: md5
-      md5: 7f19bb8a8fa914291bc77f1b3ef3a37e.dir
-      size: 145866811
+      md5: 964f29244fb731b6ba117f8260f195f8.dir
+      size: 145907904
       nfiles: 15
     - path: log/categorical_binary.log
       hash: md5
-      md5: 38a6a0a3ff2a5176414da4adf06e63d0
+      md5: 921a60a5e80f82aa5a4f9eb2c5140184
       size: 1243
   train:
-    cmd: uv run src/train.py data/train/binary
+    cmd: uv run src/train.py data/train/raw
     deps:
-    - path: data/train/binary
+    - path: data/train/raw
       hash: md5
-      md5: 7f19bb8a8fa914291bc77f1b3ef3a37e.dir
-      size: 145866811
+      md5: 77b679e6b7511d009cd702eafeebcee1.dir
+      size: 143222048
       nfiles: 15
     - path: src/train.py
       hash: md5
-      md5: d3a8730c111430acbeee9c522ead44db
-      size: 1715
+      md5: 5f7c9fca8d205930e59a5eb81cd41ff5
+      size: 2312
     params:
       params.yaml:
-        train.data_path: data/train/binary
+        train.data_path: data/train/raw
     outs:
     - path: log/train.log
       hash: md5
-      md5: 0318f5d000328eb2eb68559aaef718e4
+      md5: 6011a5dfe44a62ada13a0b85bc9c0971
       size: 338
     - path: model/improved_c45_model.joblib
       hash: md5
-      md5: 53ed0708dd8bc1ff0a16b36b4864f247
-      size: 5485
+      md5: b6336da32d97b0ff1043a0d705c3f9d1
+      size: 5017
   evaluate:
     cmd: uv run src/evaluate.py data/test/binary
     deps:

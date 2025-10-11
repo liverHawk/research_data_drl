@@ -1,0 +1,135 @@
+╰─➤  dvc repro evaluate -v                                                                                                                                                                                            255 ↵
+2025-10-11 17:04:30,437 DEBUG: v3.63.0 (pip), CPython 3.13.0 on macOS-26.0.1-arm64-arm-64bit-Mach-O
+2025-10-11 17:04:30,437 DEBUG: command: /Users/toshi_pro/.local/bin/dvc repro evaluate -v
+2025-10-11 17:04:30,620 DEBUG: Assuming 'evaluate' to be a stage inside 'dvc.yaml'              
+2025-10-11 17:04:30,765 DEBUG: Computed stage: 'data/CICIDS2017_improved.dvc' md5: 'None'
+2025-10-11 17:04:30,770 DEBUG: built tree 'object 97448ae36a9acd7110a7c6dafed93e84.dir'                                                                                                                                     
+'data/CICIDS2017_improved.dvc' didn't change, skipping                                                                                                                                                                      
+2025-10-11 17:04:30,774 DEBUG: built tree 'object 97448ae36a9acd7110a7c6dafed93e84.dir'                                                                                                                                     
+2025-10-11 17:04:30,778 DEBUG: built tree 'object 77b679e6b7511d009cd702eafeebcee1.dir'                                                                                                                                     
+2025-10-11 17:04:30,779 DEBUG: built tree 'object 8120555beb065943fd62f635ff727354.dir'                                                                                                                                     
+Stage 'build_dataset' didn't change, skipping                                                                                                                                                                               
+2025-10-11 17:04:30,783 DEBUG: built tree 'object 77b679e6b7511d009cd702eafeebcee1.dir'                                                                                                                                     
+Stage 'train' didn't change, skipping                                                                                                                                                                                       
+2025-10-11 17:04:30,789 DEBUG: 'cmd' of stage: 'evaluate' has changed.
+2025-10-11 17:04:30,789 DEBUG: stage: 'evaluate' changed.
+2025-10-11 17:04:30,790 DEBUG: 'cmd' of stage: 'evaluate' has changed.
+2025-10-11 17:04:30,790 DEBUG: stage: 'evaluate' changed.
+2025-10-11 17:04:30,792 DEBUG: Removing output 'log/evaluate.log' of stage: 'evaluate'.
+2025-10-11 17:04:30,792 DEBUG: Removing '/Users/toshi_pro/Documents/school/research_dataset/log/evaluate.log'
+2025-10-11 17:04:30,828 DEBUG: built tree 'object 8120555beb065943fd62f635ff727354.dir'                                                                                                                                     
+2025-10-11 17:04:30,829 DEBUG: 'cmd' of stage: 'evaluate' has changed.                                                                                                                                                      
+2025-10-11 17:04:30,831 DEBUG: built tree 'object 8120555beb065943fd62f635ff727354.dir'                                                                                                                                     
+2025-10-11 17:04:30,860 DEBUG: built tree 'object 8120555beb065943fd62f635ff727354.dir'                                                                                                                                     
+2025-10-11 17:04:30,863 DEBUG: built tree 'object 8120555beb065943fd62f635ff727354.dir'                                                                                                                                     
+2025-10-11 17:04:30,865 DEBUG: built tree 'object 8120555beb065943fd62f635ff727354.dir'                                                                                                                                     
+Running stage 'evaluate':                                                                                                                                                                                                   
+> uv run src/evaluate.py data/test/raw
+/Users/toshi_pro/Documents/school/research_dataset/src/../config.json
+Found the config file in: ./config.json
+<Response [200]> /api/2.0/mlflow/experiments/get-by-name
+/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/types/utils.py:452: UserWarning: Hint: Inferred schema contains integer column(s). Integer columns in Python cannot represent missing values. If your input data contains missing values at inference time, it will be encoded as floats and will cause a schema enforcement error. The best way to avoid this problem is to infer the model schema based on a realistic data sample (training dataset) that includes missing values. Alternatively, you can declare integer columns as doubles (float64) whenever these columns may have missing values. See `Handling Integers With Missing Values <https://www.mlflow.org/docs/latest/models.html#handling-integers-with-missing-values>`_ for more details.
+  warnings.warn(
+2025/10/11 17:04:36 WARNING mlflow.models.model: `artifact_path` is deprecated. Please use `name` instead.
+<Response [404]> /api/2.0/mlflow/logged-models
+Traceback (most recent call last):
+  File "/Users/toshi_pro/Documents/school/research_dataset/src/evaluate.py", line 96, in <module>
+    main()
+  File "/Users/toshi_pro/Documents/school/research_dataset/src/evaluate.py", line 92, in main
+    evaluate(df, params, logger)
+  File "/Users/toshi_pro/Documents/school/research_dataset/src/evaluate.py", line 62, in evaluate
+    model_info = mlflow.sklearn.log_model(
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/sklearn/__init__.py", line 426, in log_model
+    return Model.log(
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/models/model.py", line 1170, in log
+    model = _create_logged_model(
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/tracking/fluent.py", line 2307, in _create_logged_model
+    return MlflowClient()._create_logged_model(
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/tracking/client.py", line 5446, in _create_logged_model
+    return self._tracking_client.create_logged_model(
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/telemetry/track.py", line 30, in wrapper
+    result = func(*args, **kwargs)
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/tracking/_tracking_service/client.py", line 869, in create_logged_model
+    return self.store.create_logged_model(
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/store/tracking/rest_store.py", line 922, in create_logged_model
+    response_proto = self._call_endpoint(CreateLoggedModel, req_body)
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/store/tracking/rest_store.py", line 200, in _call_endpoint
+    return call_endpoint(
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/utils/rest_utils.py", line 555, in call_endpoint
+    response = verify_rest_response(response, endpoint)
+  File "/Users/toshi_pro/Documents/school/research_dataset/.venv/lib/python3.10/site-packages/mlflow/utils/rest_utils.py", line 314, in verify_rest_response
+    raise MlflowException(
+mlflow.exceptions.MlflowException: API request to endpoint /api/2.0/mlflow/logged-models failed with error code 404 != 200. Response body: ''
+2025-10-11 17:04:37,816 ERROR: failed to reproduce 'evaluate': failed to run: uv run src/evaluate.py data/test/raw, exited with 1
+Traceback (most recent call last):
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/repo/reproduce.py", line 187, in _reproduce
+    ret = repro_fn(stage, upstream=upstream, force=force_stage, **kwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/repo/reproduce.py", line 117, in _reproduce_stage
+    ret = stage.reproduce(**kwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/funcy/decorators.py", line 47, in wrapper
+    return deco(call, *dargs, **dkwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/decorators.py", line 44, in rwlocked
+    return call()
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/funcy/decorators.py", line 68, in __call__
+    return self._func(*self._args, **self._kwargs)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/__init__.py", line 448, in reproduce
+    self.run(**kwargs)
+    ~~~~~~~~^^^^^^^^^^
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/funcy/decorators.py", line 47, in wrapper
+    return deco(call, *dargs, **dkwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/decorators.py", line 44, in rwlocked
+    return call()
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/funcy/decorators.py", line 68, in __call__
+    return self._func(*self._args, **self._kwargs)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/__init__.py", line 601, in run
+    self._run_stage(dry, force, **kwargs)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/funcy/decorators.py", line 47, in wrapper
+    return deco(call, *dargs, **dkwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/decorators.py", line 44, in rwlocked
+    return call()
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/funcy/decorators.py", line 68, in __call__
+    return self._func(*self._args, **self._kwargs)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/__init__.py", line 628, in _run_stage
+    return run_stage(self, dry, force, **kwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/run.py", line 182, in run_stage
+    run(stage, dry=dry, run_env=run_env)
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/decorators.py", line 53, in wrapper
+    ret = f(stage, *args, **kwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/run.py", line 153, in cmd_run
+    _run(executable, cmd, **kwargs)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/stage/run.py", line 133, in _run
+    raise StageCmdFailedError(cmd, p.returncode)
+dvc.stage.exceptions.StageCmdFailedError: failed to run: uv run src/evaluate.py data/test/raw, exited with 1
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/cli/__init__.py", line 212, in main
+    ret = cmd.do_run()
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/cli/command.py", line 30, in do_run
+    return self.run()
+           ~~~~~~~~^^
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/commands/repro.py", line 11, in run
+    stages = self.repo.reproduce(**self._common_kwargs, **self._repro_kwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/repo/__init__.py", line 58, in wrapper
+    return f(repo, *args, **kwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/repo/scm_context.py", line 145, in run
+    return method(repo, *args, **kw)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/repo/reproduce.py", line 248, in reproduce
+    return _reproduce(steps, graph=graph, on_error=on_error or "fail", **kwargs)
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/repo/reproduce.py", line 191, in _reproduce
+    _raise_error(exc, stage)
+    ~~~~~~~~~~~~^^^^^^^^^^^^
+  File "/Users/toshi_pro/.local/share/uv/tools/dvc/lib/python3.13/site-packages/dvc/repo/reproduce.py", line 155, in _raise_error
+    raise ReproductionError(f"failed to reproduce{segment} {names}") from exc
+dvc.exceptions.ReproductionError: failed to reproduce 'evaluate'
+
+2025-10-11 17:04:37,823 DEBUG: Analytics is enabled.
+2025-10-11 17:04:37,844 DEBUG: Trying to spawn ['daemon', 'analytics', '/var/folders/d3/7m94kh9j1xg5sc7cx2lk48t00000gn/T/tmpii8dtq57', '-v']
+2025-10-11 17:04:37,848 DEBUG: Spawned ['daemon', 'analytics', '/var/folders/d3/7m94kh9j1xg5sc7cx2lk48t00000gn/T/tmpii8dtq57', '-v'] with pid 23514

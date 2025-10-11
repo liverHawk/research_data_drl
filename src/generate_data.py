@@ -1,4 +1,6 @@
 import torch
+import mlflow
+import os
 
 import pandas as pd
 import torch.nn as nn
@@ -6,7 +8,29 @@ import torch.optim as optim
 
 from glob import glob
 from vae_gan import VAEGAN  # VAE-GANの実装をインポート
+from azure.ai.ml import MLClient
+from azure.identity import DefaultAzureCredential
+import yaml
 
+
+def setup_mlflow(all_params):
+    if all_params["mlflow"]["use_azure"]:
+        import dagshub
+        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
+        path = os.path.join(os.path.dirname(__file__), "..", "config.json")
+        print(path)
+        ml_client = MLClient.from_config(
+            credential=DefaultAzureCredential(),
+            config_path=path
+        )
+        mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
+    else:
+        mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
+    
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    mlflow.set_experiment(
+        f"{all_params['mlflow']['experiment_name']}_generate_data"
+    )
 
 
 def load_data():
@@ -14,7 +38,9 @@ def load_data():
     files = glob(f"{path}/*.csv.gz")
     dfs = [pd.read_csv(f) for f in files]
     data = pd.concat(dfs, ignore_index=True)
-    return data
+
+    params = yaml.safe_load(open("params.yaml"))
+    return data, params
 
 
 def generate_data(df):
@@ -70,10 +96,23 @@ def generate_data(df):
             z_attack = torch.randn(batch_size, latent_dim)  # 攻撃用潜在ベクトル
             generated_attack = vae_gan.decoder(z_attack)
 
+        mlflow.log_artifact(generated_attack, artifact_path="generate_data")
+        mlflow.log_artifact(z_attack, artifact_path="generate_data")
+        mlflow.log_artifact(recon_x, artifact_path="generate_data")
+        mlflow.log_artifact(attack_x, artifact_path="generate_data")
+        mlflow.log_artifact(real_score, artifact_path="generate_data")
+        mlflow.log_artifact(fake_score, artifact_path="generate_data")
+        mlflow.log_artifact(real_labels, artifact_path="generate_data")
+        mlflow.log_artifact(fake_labels, artifact_path="generate_data")
+
 
 def main():
-    data = load_data()
+    data, params = load_data()
+    setup_mlflow(params)
+
+    mlflow.start_run()
     generate_data(data)
+    mlflow.end_run()
 
 
 

@@ -2,3 +2,5 @@ build
 *.egg-info
 /mlruns
 /mlartifacts
+/nb/test_data
+config.json

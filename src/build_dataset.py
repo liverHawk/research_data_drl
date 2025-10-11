@@ -7,12 +7,33 @@ import ipaddress as ip
 import numpy as np
 import pandas as pd
 
-
+from azure.ai.ml import MLClient
+from azure.identity import DefaultAzureCredential
 from glob import glob
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from utils import setup_logging, BASE, CICIDS2017
 from csv_utils import save_split_csv, multiprocess_save_csv
+
+
+def setup_mlflow(all_params):
+    if all_params["mlflow"]["use_azure"]:
+        import dagshub
+        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
+        path = os.path.join(os.path.dirname(__file__), "..", "config.json")
+        print(path)
+        ml_client = MLClient.from_config(
+            credential=DefaultAzureCredential(),
+            config_path=path
+        )
+        mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
+    else:
+        mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
+    
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    mlflow.set_experiment(
+        f"{all_params['mlflow']['experiment_name']}_build_dataset"
+    )
 
 
 def make_dir():
@@ -41,10 +62,7 @@ def load_params():
     data_path = sys.argv[1]
 
     all_params = yaml.safe_load(open("params.yaml"))
-    mlflow.set_tracking_uri(all_params["mlflow"]["tracking_uri"])
-    mlflow.set_experiment(
-        f"{all_params['mlflow']['experiment_name']}_build_dataset"
-    )
+    setup_mlflow(all_params)
 
     return all_params["build_dataset"], data_path
 
@@ -151,7 +169,6 @@ def main():
     )
     logger.info(f"Train/Test split finished")
 
-    logger.info("Start saving CSV files")
     save_csv(train_df, test_df, logger)
     
     mlflow.end_run()

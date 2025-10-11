@@ -1,8 +1,9 @@
 dataset_name: CICIDS2017_improved
 
 mlflow:
-  tracking_uri: http://127.0.0.1:5000
-  experiment_name: research_dataset
+  tracking_uri: https://dagshub.com/liverHawk/research_data_drl.mlflow
+  experiment_name: toshi_pro
+  use_azure: False
 
 build_dataset:
   test_size: 0.3

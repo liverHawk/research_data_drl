@@ -15,6 +15,7 @@ dependencies = [
     "azure-identity>=1.25.1",
     "azureml-core>=1.60.0.post1",
     "azureml-mlflow>=1.60.0",
+    "dagshub>=0.6.3",
 ]
 
 [tool.uv.sources]

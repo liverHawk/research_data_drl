@@ -8,6 +8,28 @@ import pandas as pd
 from glob import glob
 from utils import setup_logging
 from classifier import ImprovedC45
+from azure.ai.ml import MLClient
+from azure.identity import DefaultAzureCredential
+
+
+def setup_mlflow(all_params):
+    if all_params["mlflow"]["use_azure"]:
+        import dagshub
+        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
+        path = os.path.join(os.path.dirname(__file__), "..", "config.json")
+        print(path)
+        ml_client = MLClient.from_config(
+            credential=DefaultAzureCredential(),
+            config_path=path
+        )
+        mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
+    else:
+        mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
+    
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    mlflow.set_experiment(
+        f"{all_params['mlflow']['experiment_name']}_train"
+    )
 
 
 def make_dir():
@@ -22,10 +44,7 @@ def load_params():
     data_path = sys.argv[1]
 
     all_params = yaml.safe_load(open("params.yaml"))
-    mlflow.set_tracking_uri(all_params["mlflow"]["tracking_uri"])
-    mlflow.set_experiment(
-        f"{all_params['mlflow']['experiment_name']}_train"
-    )
+    setup_mlflow(all_params)
 
     return all_params["train"], data_path
 
@@ -48,6 +67,7 @@ def train(df, params, logger):
     y = df["Label"]
 
     logger.info("Training model...")
+    print(X.shape)
     model.fit(X, y)
     logger.info("Model training completed.")
 
