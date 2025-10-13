@@ -50,7 +50,7 @@ from queue import Queue
 from collections import deque
 
 import flow_package as fp
-from flow_package.multi_flow_env import MultiFlowEnv, InputType
+from flow_package.multi_df_env import MultiDfEnv, EnvConfig
 
 from utils import setup_logging, rolling_normalize
 from network import DeepFlowNetwork, DeepFlowNetworkV2
@@ -249,14 +249,8 @@ class MetricsLogger:
         self.running = False
         self.logger = logger
         self.thread = threading.Thread(target=self._worker, daemon=False)
-        self.processed_count = 0  # 処理済みエピソード数を追跡
-        self.total_episodes = total_episodes
-        self.progress_bar = tqdm(total=total_episodes, desc="Logging Metrics", position=0)
-
-        # 強制終了シグナルのハンドラを設定
-        signal.signal(signal.SIGINT, self._handle_exit)
-        signal.signal(signal.SIGTERM, self._handle_exit)
-
+        # self.thread.start()
+    
     def _worker(self):
         """バックグラウンドでメトリクスを処理"""
         while self.running:
@@ -301,10 +295,9 @@ class MetricsLogger:
                 self.progress_bar.update(1)
                 
             except Exception as e:
-                if self.queue.empty():
-                    time.sleep(100)
+                if len(self.queue) == 0:
+                    time.sleep(1000)
                     continue
-                # self.logger.warning(f"Error in metrics logger worker: {e}")
                 continue
     
     def log(self, episode, metrics):
@@ -313,6 +306,10 @@ class MetricsLogger:
             self.running = True
             self.thread.start()
         self.queue.put((episode, metrics))
+        if not self.running:
+            self.running = True
+            self.thread.start()
+            return
     
     def shutdown(self):
         """ロガーを終了してメトリクスを保存"""
@@ -386,14 +383,22 @@ def train(df, params):
     columns = df.columns.tolist()
     columns.remove("Label")
 
-    input = InputType(
+    input = EnvConfig(
         data=df,
-        sample_size=params.get("sample_size", 100000),
-        normalize_exclude_columns=["Protocol", "Destination Port"],
-        # exclude_columns=["Attempted Category"],
-        reward_list=reward_matrix
+        label_column="Label",
+        render_mode=None,
+        window_size=params.get("window_size", 10),
+        max_steps=params.get("max_steps", 100),
+        normalize_method="rolling",
+        rolling_window=params.get("rolling_window", 10),
     )
-    env = MultiFlowEnv(input)
+    mlflow.log_params({
+        "window_size": input.window_size,
+        "max_steps": input.max_steps,
+        "normalize_method": input.normalize_method,
+        "rolling_window": input.rolling_window,
+    })
+    env = MultiDfEnv(input)
 
     n_states = env.observation_space.shape[0]
     n_actions = env.action_space.n
@@ -475,10 +480,9 @@ def train(df, params):
             # store a 1-d scalar tensor for reward (shape: [1]) to keep consistent shapes
             preserve_reward = torch.tensor([float(reward)], dtype=torch.float32, device=device)
 
-            cm_memory.append([
-                info["action"],
-                info["answer"],
-            ])
+            cm_index = info["confusion_matrix_index"] # tuple (action, answer)
+
+            cm_memory.append(cm_index.tolist()) # list of [action, answer]
 
             next_state = to_tensor(raw_next_state, include_category) if not terminated else None
             memory.push(state, action, next_state, preserve_reward)

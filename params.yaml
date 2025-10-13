@@ -11,21 +11,21 @@ build_dataset:
   random_state: 42
 
 categorical_binary:
-  binary: True
+  sample: True
 
 train:
-  data_path: data/train/raw
+  data_path: data/train/binary
   model_type: RandomForest
 
 evaluate:
-  data_path: data/test/raw
+  data_path: data/test/binary
   plot: True
 
 train_drl:
   protocol_dim: 8
   port_dim: 32
 # data_path : binary -> include_category: False
-  include_category: True
+  include_category: False
 
   update_target_steps: 200
   batch_size: 16
@@ -40,4 +40,4 @@ train_drl:
   sample_size: 100
 
 evaluate_drl:
-  include_category: True
+  include_category: False
