@@ -1,9 +1,10 @@
 dataset_name: CICIDS2017_improved
 
 mlflow:
-  tracking_uri: https://dagshub.com/liverHawk/research_data_drl.mlflow
+  tracking_uri: "https://dagshub.com/liverHawk/research_data_drl.mlflow"
   experiment_name: toshi_pro
   use_azure: False
+  use_dagshub: True
 
 build_dataset:
   test_size: 0.3
@@ -27,7 +28,7 @@ train_drl:
   include_category: True
 
   update_target_steps: 200
-  batch_size: 512
+  batch_size: 16
   gamma: 0.99
   eps_start: 0.9
   eps_end: 0.05
@@ -36,7 +37,7 @@ train_drl:
   lr: 0.001
   memory_size: 100000
   n_episodes: 100
-  sample_size: 10000
+  sample_size: 100
 
 evaluate_drl:
   include_category: True

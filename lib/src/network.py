@@ -14,8 +14,13 @@ class DeepFlowNetwork(nn.Module):
         self.fc3 = nn.Linear(256, n_outputs)
 
     def forward(self, x):
-        port_emb = self.port_embedding(x[0].long())
-        protocol_emb = self.protocol_embedding(x[1].long())
+        # x[0]: port (batch_size,) or (batch_size, 1)
+        # x[1]: protocol (batch_size,) or (batch_size, 1)  
+        # x[2]: features (batch_size, n_features)
+        port = x[0].squeeze() if x[0].dim() > 1 else x[0]
+        protocol = x[1].squeeze() if x[1].dim() > 1 else x[1]
+        port_emb = self.port_embedding(port.long())
+        protocol_emb = self.protocol_embedding(protocol.long())
         renew = torch.cat([port_emb, protocol_emb, x[2]], dim=1)
         renew = F.relu(self.fc1(renew))
         renew = F.relu(self.fc2(renew))

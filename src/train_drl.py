@@ -32,12 +32,6 @@ import yaml
 import random
 import pandas as pd
 import numpy as np
-import os
-import sys
-import yaml
-import random
-import pandas as pd
-import numpy as np
 import time
 import torch
 import torch.nn as nn
@@ -46,15 +40,14 @@ import torch.optim as optim
 import mlflow
 from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential
-import matplotlib.pyplot as plt
-import psutil
-from collections import deque
-from scipy.stats import entropy
 
 from itertools import count
 from glob import glob
 from torch.amp import autocast, GradScaler
 from tqdm import tqdm
+import threading
+from queue import Queue
+from collections import deque
 
 import flow_package as fp
 from flow_package.multi_flow_env import MultiFlowEnv, InputType
@@ -66,8 +59,6 @@ from deep_learn import ReplayMemory, Transaction
 
 def setup_mlflow(all_params):
     if all_params["mlflow"]["use_azure"]:
-        import dagshub
-        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
         path = os.path.join(os.path.dirname(__file__), "..", "config.json")
         print(path)
         ml_client = MLClient.from_config(
@@ -76,6 +67,8 @@ def setup_mlflow(all_params):
         )
         mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
     else:
+        import dagshub
+        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
         mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
     
     mlflow.set_tracking_uri(mlflow_tracking_uri)
@@ -89,45 +82,11 @@ def setup_mlflow(all_params):
 # ========================
 F_LOSS = nn.MSELoss()
 
-
-# ========================
-# リソース監視機能
-# ========================
-def get_gpu_memory_usage():
-    """GPUメモリ使用率を取得（使用可能な場合）"""
-    if torch.cuda.is_available():
-        return {
-            "gpu_memory_allocated_mb": torch.cuda.memory_allocated() / 1024**2,
-            "gpu_memory_reserved_mb": torch.cuda.memory_reserved() / 1024**2,
-            "gpu_memory_allocated_pct": (torch.cuda.memory_allocated() / torch.cuda.get_device_properties(0).total_memory) * 100
-        }
-    elif torch.mps.is_available():
-        # MPSの場合はメモリ情報の取得が制限されている
-        return {
-            "gpu_memory_allocated_mb": torch.mps.current_allocated_memory() / 1024**2 if hasattr(torch.mps, 'current_allocated_memory') else 0,
-            "gpu_memory_reserved_mb": 0,
-            "gpu_memory_allocated_pct": 0
-        }
-    return {"gpu_memory_allocated_mb": 0, "gpu_memory_reserved_mb": 0, "gpu_memory_allocated_pct": 0}
-
-
-def get_system_resources():
-    """システムリソース（RAM、CPU）の使用状況を取得"""
-    process = psutil.Process()
-    memory_info = process.memory_info()
-    
-    return {
-        "ram_usage_mb": memory_info.rss / 1024**2,
-        "ram_usage_pct": process.memory_percent(),
-        "cpu_usage_pct": process.cpu_percent(interval=0.1)
-    }
-
-
 # ========================
 # デバイス設定
 # ========================
 if torch.cuda.is_available():
-    device = torch.device("cuda:3")
+    device = torch.device("cuda:1")
 elif torch.mps.is_available():
     device = torch.device("mps")
 else:
@@ -181,19 +140,16 @@ def load_csv(input):
 def _unpack_state_batch(state_batch, include_category=False):
     """
     state_batch: list of states (each state は include_category=True の場合 (port, protocol, features) のタプル)
-    -> バッチごとに (batch_size, n_states) の 2D Tensor を返す（float32, device に移動）
+    -> include_category=True の場合は (port_batch, protocol_batch, features_batch) のタプルを返す
+    -> include_category=False の場合は (batch_size, n_states) の 2D Tensor を返す
     """
     # state_batch が空の可能性は呼び出し元で弾く想定
     if include_category:
-        # 各サンプルごとに要素を結合して1次元ベクトルにし、それを stack して (B, n_states) にする
-        per_samples = []
-        for s in state_batch:
-            # s[0], s[1], s[2] がテンソルである前提
-            a = s[0].view(-1)
-            b = s[1].view(-1)
-            c = s[2].view(-1)
-            per_samples.append(torch.cat([a, b, c], dim=0))
-        return torch.stack(per_samples, dim=0).to(device).float()
+        # 各要素を個別にバッチ化してタプルで返す
+        port_batch = torch.stack([s[0].view(-1) for s in state_batch], dim=0).to(device).long()
+        protocol_batch = torch.stack([s[1].view(-1) for s in state_batch], dim=0).to(device).long()
+        features_batch = torch.stack([s[2].view(-1) for s in state_batch], dim=0).to(device).float()
+        return (port_batch, protocol_batch, features_batch)
     else:
         # 非カテゴリ版も各サンプルを stack して (B, n_states) に
         per_samples = [s.view(-1) for s in state_batch]
@@ -244,67 +200,29 @@ def optimize_model(params: OptimizeModelParams):
     else:
         next_state_batch = None
 
-    # メトリクス計算用の辞書
-    metrics = {}
-
-    def _calculate_loss():
-        # policy_net は (B, n_states) を受け取り (B, n_actions) を返す想定
-        state_action_values = params.policy_net(state_batch).gather(1, action_batch)
-        next_state_values = torch.zeros(params.BATCH_SIZE, device=device)
-        if next_state_batch is not None:
-            with torch.no_grad():
-                next_q = params.target_net(next_state_batch)
-                next_state_values[non_final_mask] = next_q.max(1).values.float()
-        expected_state_action_values = reward_batch + params.GAMMA * next_state_values
-        loss = F_LOSS(state_action_values, expected_state_action_values.unsqueeze(1))
-        
-        # メトリクスの保存
+    # 損失計算
+    state_action_values = params.policy_net(state_batch).gather(1, action_batch)
+    next_state_values = torch.zeros(params.BATCH_SIZE, device=device)
+    if next_state_batch is not None:
         with torch.no_grad():
-            metrics["value_pred"] = state_action_values.mean().item()
-            metrics["value_target"] = expected_state_action_values.mean().item()
-            metrics["td_error"] = (state_action_values.squeeze() - expected_state_action_values).abs().mean().item()
-            metrics["q_value_mean"] = state_action_values.mean().item()
-            metrics["q_value_std"] = state_action_values.std().item()
-            metrics["reward_mean"] = reward_batch.mean().item()
-        
-        return loss
+            next_q = params.target_net(next_state_batch)
+            next_state_values[non_final_mask] = next_q.max(1).values.float()
+    expected_state_action_values = reward_batch + params.GAMMA * next_state_values
+    loss = F_LOSS(state_action_values, expected_state_action_values.unsqueeze(1))
 
-    # 損失計算・最適化
+    # 最適化
+    params.optimizer.zero_grad()
     if params.scaler is not None:
-        with autocast(device_type=device.type):
-            loss = _calculate_loss()
-        params.optimizer.zero_grad()
         params.scaler.scale(loss).backward()
-        
-        # 勾配ノルムの計算（スケール前）
-        total_norm = 0.0
-        for p in params.policy_net.parameters():
-            if p.grad is not None:
-                param_norm = p.grad.data.norm(2)
-                total_norm += param_norm.item() ** 2
-        metrics["grad_norm"] = total_norm ** 0.5
-        
         utils.clip_grad_value_(params.policy_net.parameters(), 1000)
         params.scaler.step(params.optimizer)
         params.scaler.update()
     else:
-        loss = _calculate_loss()
-        params.optimizer.zero_grad()
         loss.backward()
-        
-        # 勾配ノルムの計算
-        total_norm = 0.0
-        for p in params.policy_net.parameters():
-            if p.grad is not None:
-                param_norm = p.grad.data.norm(2)
-                total_norm += param_norm.item() ** 2
-        metrics["grad_norm"] = total_norm ** 0.5
-        
         utils.clip_grad_value_(params.policy_net.parameters(), 1000)
         params.optimizer.step()
     
-    metrics["loss"] = loss.item()
-    return metrics
+    return loss.item()
 
 
 def to_tensor(state, include_category=True):
@@ -313,6 +231,99 @@ def to_tensor(state, include_category=True):
         return fp.to_tensor(state, device=device)
     else:
         return torch.tensor(state, device=device, dtype=torch.float32)
+
+
+# ========================
+# バックグラウンドメトリクスロガー
+# ========================
+class MetricsLogger:
+    """バックグラウンドスレッドでメトリクスをMLflowに送信"""
+    
+    def __init__(self, logger):
+        self.queue = Queue()
+        self.metrics_history = []
+        self.running = True
+        self.logger = logger
+        self.thread = threading.Thread(target=self._worker, daemon=False)
+        self.thread.start()
+    
+    def _worker(self):
+        """バックグラウンドでメトリクスを処理"""
+        while self.running:
+            try:
+                item = self.queue.get(timeout=0.5)
+                if item is None:  # 終了シグナル
+                    break
+                
+                episode, metrics = item
+                
+                # メトリクスを履歴に保存
+                metrics_with_episode = {"episode": episode, **metrics}
+                self.metrics_history.append(metrics_with_episode)
+                
+                # MLflowにログを送信（非ブロッキング）
+                try:
+                    mlflow.log_metric("reward", float(metrics["reward"]), step=episode)
+                    mlflow.log_metric("accuracy", float(metrics["accuracy"]), step=episode)
+                    mlflow.log_metric("episode_length", int(metrics["steps"]), step=episode)
+                    
+                    # lossがある場合は記録
+                    if "loss" in metrics and metrics["loss"] is not None:
+                        mlflow.log_metric("loss", float(metrics["loss"]), step=episode)
+                    
+                    # 10エピソードごとに詳細ログ
+                    if episode % 10 == 0:
+                        mlflow.log_metric("buffer_size", int(metrics.get("buffer_size", 0)), step=episode)
+                        mlflow.log_metric("epsilon", float(metrics.get("epsilon", 0)), step=episode)
+                except Exception as e:
+                    self.logger.warning(f"MLflow logging failed: {e}")
+                
+                # キューのタスク完了を通知
+                self.queue.task_done()
+                
+            except Exception as e:
+                self.logger.warning(f"Error in metrics logger worker: {e}")
+                continue
+    
+    def log(self, episode, metrics):
+        """メトリクスをキューに追加（非ブロッキング）"""
+        self.queue.put((episode, metrics))
+    
+    def shutdown(self):
+        """ロガーを終了してメトリクスを保存"""
+        self.logger.info("Waiting for all metrics to be logged...")
+        
+        # キューが空になるまで待つ
+        self.queue.join()
+        self.logger.info(f"All metrics in queue processed. Queue size: {self.queue.qsize()}")
+        
+        # 終了シグナルを送信
+        self.running = False
+        self.queue.put(None)
+        
+        # スレッドの終了を待つ
+        self.thread.join(timeout=10)  # 最大10秒待つ
+        if self.thread.is_alive():
+            self.logger.warning("Metrics logger thread did not finish in time")
+        else:
+            self.logger.info("Metrics logger thread finished successfully")
+        
+        # 全メトリクスをCSVに保存
+        if self.metrics_history:
+            df = pd.DataFrame(self.metrics_history)
+            os.makedirs("train", exist_ok=True)
+            csv_path = "train/metrics.csv"
+            df.to_csv(csv_path, index=False)
+            self.logger.info(f"Metrics saved to {csv_path} ({len(self.metrics_history)} episodes)")
+            
+            # MLflowにアーティファクトとして保存
+            try:
+                mlflow.log_artifact(csv_path)
+                self.logger.info("Metrics CSV uploaded to MLflow")
+            except Exception as e:
+                self.logger.warning(f"Failed to log metrics CSV to MLflow: {e}")
+        
+        return self.metrics_history
 
 
 def write_result(cm_memory, episode, n_output):
@@ -330,16 +341,11 @@ def write_result(cm_memory, episode, n_output):
 
 def train(df, params):
     logger = setup_logging("log/train_drl.log")
-
-    # ログパラメータを保存
-    mlflow.log_params({
-        "n_episodes": params.get("n_episodes"),
-        "batch_size": params.get("batch_size"),
-        "lr": params.get("lr"),
-        "memory_size": params.get("memory_size")
-    })
-
     logger.info("Starting training...")
+    
+    # バックグラウンドメトリクスロガーを初期化
+    metrics_logger = MetricsLogger(logger)
+    
     label_count = len(df["Label"].unique())
     reward_matrix = np.ones((label_count, label_count)) * -1.0
     np.fill_diagonal(reward_matrix, 1.0)
@@ -364,57 +370,19 @@ def train(df, params):
     logger.info(f"State space: {n_states}, Action space: {n_actions}")
 
     if include_category:
+        logger.info("Using DeepFlowNetwork")
+        logger.info(f"State space: {n_states}, Action space: {n_actions}")
         policy_net = DeepFlowNetwork(n_states, n_actions).to(device)
         target_net = DeepFlowNetwork(n_states, n_actions).to(device)
     else:
+        logger.info("Using DeepFlowNetworkV2")
+        logger.info(f"State space: {n_states}, Action space: {n_actions}")
         policy_net = DeepFlowNetworkV2(n_states, n_actions).to(device)
         target_net = DeepFlowNetworkV2(n_states, n_actions).to(device)
 
     target_net.load_state_dict(policy_net.state_dict())
 
     cm_memory = []
-
-    # メトリクス収集用（拡張版）
-    metrics = {
-        # Reward関連
-        "reward": [],
-        "reward_moving_avg": [],
-        
-        # Loss関連
-        "loss": [],
-        "td_error": [],
-        "grad_norm": [],
-        "value_pred": [],
-        "value_target": [],
-        "q_value_mean": [],
-        "q_value_std": [],
-        
-        # Action関連
-        "epsilon": [],
-        "action_entropy": [],
-        
-        # Environment
-        "steps": [],
-        "accuracy": [],
-        
-        # Learning
-        "learning_rate": [],
-        
-        # Off-policy
-        "buffer_size": [],
-        "buffer_usage_rate": [],
-        
-        # Resources
-        "ram_usage_mb": [],
-        "gpu_memory_mb": [],
-        "cpu_usage_pct": [],
-        
-        # その他
-        "last_cm": None
-    }
-    
-    # Moving average用のdeque
-    reward_window = deque(maxlen=100)
 
     optimizer = optim.Adam(policy_net.parameters(), lr=params["lr"])
     # Learning rate scheduler（オプション）
@@ -458,30 +426,12 @@ def train(df, params):
         state = to_tensor(initial_state, include_category)
 
         episode_reward = 0.0
-        episode_metrics = {
-            "losses": [],
-            "td_errors": [],
-            "grad_norms": [],
-            "value_preds": [],
-            "value_targets": [],
-            "q_value_means": [],
-            "q_value_stds": [],
-            "actions": [],
-            "epsilons": []
-        }
         episode_steps = 0
+        episode_losses = []
 
         for t in tqdm(count(), leave=False):
-            # ε値の計算と記録
-            eps_threshold = select_params.EPS_END + (select_params.EPS_START - select_params.EPS_END) * \
-                           np.exp(-1. * select_params.steps_done / select_params.EPS_DECAY)
-            episode_metrics["epsilons"].append(eps_threshold)
-            
             action = select_action(state, select_params)
             select_params.steps_done += 1
-            
-            # 行動を記録
-            episode_metrics["actions"].append(action.item())
             
             raw_next_state, reward, terminated, _, info = env.step(action.item())
 
@@ -502,127 +452,42 @@ def train(df, params):
             state = next_state
 
             if len(memory) > params.get("batch_size", 128):
-                opt_metrics = optimize_model(optimize_params)
-                episode_metrics["losses"].append(opt_metrics["loss"])
-                episode_metrics["td_errors"].append(opt_metrics["td_error"])
-                episode_metrics["grad_norms"].append(opt_metrics["grad_norm"])
-                episode_metrics["value_preds"].append(opt_metrics["value_pred"])
-                episode_metrics["value_targets"].append(opt_metrics["value_target"])
-                episode_metrics["q_value_means"].append(opt_metrics["q_value_mean"])
-                episode_metrics["q_value_stds"].append(opt_metrics["q_value_std"])
+                loss = optimize_model(optimize_params)
+                episode_losses.append(loss)
             
             episode_steps += 1
 
             if terminated:
                 break
 
-        # エピソード終了後のメトリクス集計
-        avg_loss = float(np.mean(episode_metrics["losses"])) if episode_metrics["losses"] else 0.0
-        avg_td_error = float(np.mean(episode_metrics["td_errors"])) if episode_metrics["td_errors"] else 0.0
-        avg_grad_norm = float(np.mean(episode_metrics["grad_norms"])) if episode_metrics["grad_norms"] else 0.0
-        avg_value_pred = float(np.mean(episode_metrics["value_preds"])) if episode_metrics["value_preds"] else 0.0
-        avg_value_target = float(np.mean(episode_metrics["value_targets"])) if episode_metrics["value_targets"] else 0.0
-        avg_q_value_mean = float(np.mean(episode_metrics["q_value_means"])) if episode_metrics["q_value_means"] else 0.0
-        avg_q_value_std = float(np.mean(episode_metrics["q_value_stds"])) if episode_metrics["q_value_stds"] else 0.0
-        avg_epsilon = float(np.mean(episode_metrics["epsilons"])) if episode_metrics["epsilons"] else 0.0
-        
-        # Action entropyの計算
-        if episode_metrics["actions"]:
-            action_counts = np.bincount(episode_metrics["actions"], minlength=n_actions)
-            action_probs = action_counts / action_counts.sum()
-            action_entropy_val = entropy(action_probs + 1e-10)
-        else:
-            action_entropy_val = 0.0
-        
-        # Moving average reward
-        reward_window.append(episode_reward)
-        reward_moving_avg = float(np.mean(reward_window))
-        
-        # リソース使用状況の取得
-        sys_resources = get_system_resources()
-        gpu_resources = get_gpu_memory_usage()
-        
-        # Buffer使用率
-        buffer_size = len(memory)
-        buffer_usage_rate = buffer_size / params["memory_size"]
-        
-        # 現在の学習率
-        current_lr = optimizer.param_groups[0]['lr']
-        
+        # エピソード終了後の最小限の処理
         cm, accuracy = write_result(cm_memory, i_episode, n_actions)
-
-        # メトリクスの保存
-        metrics["reward"].append(episode_reward)
-        metrics["reward_moving_avg"].append(reward_moving_avg)
-        metrics["loss"].append(avg_loss)
-        metrics["td_error"].append(avg_td_error)
-        metrics["grad_norm"].append(avg_grad_norm)
-        metrics["value_pred"].append(avg_value_pred)
-        metrics["value_target"].append(avg_value_target)
-        metrics["q_value_mean"].append(avg_q_value_mean)
-        metrics["q_value_std"].append(avg_q_value_std)
-        metrics["epsilon"].append(avg_epsilon)
-        metrics["action_entropy"].append(action_entropy_val)
-        metrics["steps"].append(episode_steps)
-        metrics["accuracy"].append(accuracy)
-        metrics["learning_rate"].append(current_lr)
-        metrics["buffer_size"].append(buffer_size)
-        metrics["buffer_usage_rate"].append(buffer_usage_rate)
-        metrics["ram_usage_mb"].append(sys_resources["ram_usage_mb"])
-        metrics["gpu_memory_mb"].append(gpu_resources["gpu_memory_allocated_mb"])
-        metrics["cpu_usage_pct"].append(sys_resources["cpu_usage_pct"])
-        metrics["last_cm"] = cm.copy()
-
-        # エピソードごとにログ用CSVへ追記
-        metrics_df = pd.DataFrame({
-            "episode": np.arange(len(metrics["reward"])),
-            "reward": metrics["reward"],
-            "reward_moving_avg": metrics["reward_moving_avg"],
-            "loss": metrics["loss"],
-            "td_error": metrics["td_error"],
-            "grad_norm": metrics["grad_norm"],
-            "value_pred": metrics["value_pred"],
-            "value_target": metrics["value_target"],
-            "q_value_mean": metrics["q_value_mean"],
-            "q_value_std": metrics["q_value_std"],
-            "epsilon": metrics["epsilon"],
-            "action_entropy": metrics["action_entropy"],
-            "accuracy": metrics["accuracy"],
-            "steps": metrics["steps"],
-            "learning_rate": metrics["learning_rate"],
-            "buffer_size": metrics["buffer_size"],
-            "buffer_usage_rate": metrics["buffer_usage_rate"],
-            "ram_usage_mb": metrics["ram_usage_mb"],
-            "gpu_memory_mb": metrics["gpu_memory_mb"],
-            "cpu_usage_pct": metrics["cpu_usage_pct"]
+        
+        # epsilon値を計算
+        epsilon = select_params.EPS_END + (select_params.EPS_START - select_params.EPS_END) * \
+                  np.exp(-1. * select_params.steps_done / select_params.EPS_DECAY)
+        
+        # lossの平均を計算
+        avg_loss = float(np.mean(episode_losses)) if episode_losses else None
+        
+        # メトリクスをバックグラウンドスレッドに送信（非ブロッキング）
+        metrics_logger.log(i_episode, {
+            "reward": episode_reward,
+            "accuracy": accuracy,
+            "steps": episode_steps,
+            "buffer_size": len(memory),
+            "epsilon": epsilon,
+            "loss": avg_loss
         })
-        metrics_df.to_csv("train/metrics.csv", index=False)
-
-        # mlflow に逐次メトリクスを送信（step=i_episode）
-        mlflow.log_metric("reward/total", float(episode_reward), step=i_episode)
-        mlflow.log_metric("reward/moving_avg", float(reward_moving_avg), step=i_episode)
-        mlflow.log_metric("loss/q_loss", float(avg_loss), step=i_episode)
-        mlflow.log_metric("loss/td_error", float(avg_td_error), step=i_episode)
-        mlflow.log_metric("loss/grad_norm", float(avg_grad_norm), step=i_episode)
-        mlflow.log_metric("loss/value_pred", float(avg_value_pred), step=i_episode)
-        mlflow.log_metric("loss/value_target", float(avg_value_target), step=i_episode)
-        mlflow.log_metric("loss/q_value_mean", float(avg_q_value_mean), step=i_episode)
-        mlflow.log_metric("loss/q_value_std", float(avg_q_value_std), step=i_episode)
-        mlflow.log_metric("action/epsilon", float(avg_epsilon), step=i_episode)
-        mlflow.log_metric("action/entropy", float(action_entropy_val), step=i_episode)
-        mlflow.log_metric("env/accuracy", float(accuracy), step=i_episode)
-        mlflow.log_metric("env/episode_length", int(episode_steps), step=i_episode)
-        mlflow.log_metric("learning/lr", float(current_lr), step=i_episode)
-        mlflow.log_metric("buffer/size", int(buffer_size), step=i_episode)
-        mlflow.log_metric("buffer/usage_rate", float(buffer_usage_rate), step=i_episode)
-        mlflow.log_metric("resource/ram_mb", float(sys_resources["ram_usage_mb"]), step=i_episode)
-        mlflow.log_metric("resource/gpu_memory_mb", float(gpu_resources["gpu_memory_allocated_mb"]), step=i_episode)
-        mlflow.log_metric("resource/cpu_pct", float(sys_resources["cpu_usage_pct"]), step=i_episode)
+        
+        # 定期的にログ出力
+        # if i_episode % 10 == 0:
+        #     logger.info(f"Episode {i_episode}: Reward={episode_reward:.2f}, Accuracy={accuracy:.4f}, Steps={episode_steps}")
         
         # Target networkの更新
         if i_episode % target_update_freq == 0:
             target_net.load_state_dict(policy_net.state_dict())
-            logger.info(f"Episode {i_episode}: Target network updated")
+            # logger.info(f"Episode {i_episode}: Target network updated")
         
         # Learning rate schedulerの更新
         if scheduler is not None:
@@ -630,18 +495,16 @@ def train(df, params):
 
         cm_memory = []
 
-    # 学習終了後に最終アーティファクトを保存
-    # モデル
+    # メトリクスロガーを終了してメトリクスを保存
+    logger.info("Shutting down metrics logger...")
+    metrics_history = metrics_logger.shutdown()
+    logger.info(f"Logged {len(metrics_history)} episodes")
+
+    # 学習終了後にモデルを保存
     path = os.path.join("model", "drl_model.pth")
     torch.save(policy_net.state_dict(), path)
     mlflow.log_artifact(path, artifact_path="models")
-
-    # TODO: plot moving average of reward
-    
-
-    # 全メトリクスCSV と logs をまとめて保存
-    mlflow.log_artifact("train/metrics.csv")
-    mlflow.log_artifacts("train/plots")
+    logger.info("Training completed.")
 
 
 def main():
@@ -655,6 +518,7 @@ def main():
     df = load_csv(input_path)
 
     train(df, params)
+    mlflow.set_tag("status", "train_completed")
     mlflow.end_run()
 
 

@@ -1,6 +1,8 @@
 import torch
 import mlflow
 import os
+import cProfile
+import pstats
 
 import pandas as pd
 import torch.nn as nn
@@ -15,8 +17,6 @@ import yaml
 
 def setup_mlflow(all_params):
     if all_params["mlflow"]["use_azure"]:
-        import dagshub
-        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
         path = os.path.join(os.path.dirname(__file__), "..", "config.json")
         print(path)
         ml_client = MLClient.from_config(
@@ -26,6 +26,9 @@ def setup_mlflow(all_params):
         mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
     else:
         mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
+    if all_params["mlflow"]["use_dagshub"]:
+        import dagshub
+        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
     
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     mlflow.set_experiment(
@@ -107,12 +110,22 @@ def generate_data(df):
 
 
 def main():
-    data, params = load_data()
-    setup_mlflow(params)
+    with cProfile.Profile() as pr:
+        data, params = load_data()
+        setup_mlflow(params)
 
-    mlflow.start_run()
-    generate_data(data)
-    mlflow.end_run()
+        mlflow.start_run()
+        generate_data(data)
+        mlflow.end_run()
+    
+    with open("generate_data.prof", "w") as f:
+        ps = pstats.Stats(pr, stream=f)
+        ps.sort_stats("cumulative")
+        ps.print_stats()
+    with open("generate_data.prof", "w") as f:
+        ps = pstats.Stats(pr, stream=f)
+        ps.sort_stats("time")
+        ps.print_stats()
 
 
 

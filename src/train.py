@@ -2,6 +2,8 @@ import os
 import sys
 import mlflow
 import yaml
+import cProfile
+import pstats
 
 import pandas as pd
 
@@ -14,8 +16,6 @@ from azure.identity import DefaultAzureCredential
 
 def setup_mlflow(all_params):
     if all_params["mlflow"]["use_azure"]:
-        import dagshub
-        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
         path = os.path.join(os.path.dirname(__file__), "..", "config.json")
         print(path)
         ml_client = MLClient.from_config(
@@ -25,6 +25,9 @@ def setup_mlflow(all_params):
         mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
     else:
         mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
+    if all_params["mlflow"]["use_dagshub"]:
+        import dagshub
+        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
     
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     mlflow.set_experiment(
@@ -77,21 +80,31 @@ def train(df, params, logger):
 
 
 def main():
-    make_dir()
-    params, data_path = load_params()
-    logger = setup_logging(
-        os.path.abspath(os.path.join("log", "train.log"))
-    )
+    with cProfile.Profile() as pr:
+        make_dir()
+        params, data_path = load_params()
+        logger = setup_logging(
+            os.path.abspath(os.path.join("log", "train.log"))
+        )
 
-    mlflow.start_run()
+        mlflow.start_run()
 
-    logger.info("Loading data...")
-    df = load_data(data_path)
-    logger.info(f"Data shape: {df.shape}")
+        logger.info("Loading data...")
+        df = load_data(data_path)
+        logger.info(f"Data shape: {df.shape}")
 
-    train(df, params, logger)
+        train(df, params, logger)
 
-    mlflow.end_run()
+        mlflow.end_run()
+    
+    with open("train.prof", "w") as f:
+        ps = pstats.Stats(pr, stream=f)
+        ps.sort_stats("cumulative")
+        ps.print_stats()
+    with open("train.prof", "w") as f:
+        ps = pstats.Stats(pr, stream=f)
+        ps.sort_stats("time")
+        ps.print_stats()
 
 
 if __name__ == "__main__":

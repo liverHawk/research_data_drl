@@ -4,6 +4,8 @@ import torch
 import yaml
 import pandas as pd
 import numpy as np
+import cProfile
+import pstats
 
 from itertools import count
 from glob import glob
@@ -24,8 +26,6 @@ from azure.identity import DefaultAzureCredential
 
 def setup_mlflow(all_params):
     if all_params["mlflow"]["use_azure"]:
-        import dagshub
-        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
         path = os.path.join(os.path.dirname(__file__), "..", "config.json")
         print(path)
         ml_client = MLClient.from_config(
@@ -35,6 +35,9 @@ def setup_mlflow(all_params):
         mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
     else:
         mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
+    if all_params["mlflow"]["use_dagshub"]:
+        import dagshub
+        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
     
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     mlflow.set_experiment(
@@ -180,16 +183,26 @@ def main():
     if len(sys.argv) != 2:
         print("Usage: python evaluate.py <test_data_directory>")
         sys.exit(1)
-    params = yaml.safe_load(open("params.yaml"))
+    with cProfile.Profile() as pr:
+        params = yaml.safe_load(open("params.yaml"))
 
-    setup_mlflow(params)
-    mlflow.start_run()
+        setup_mlflow(params)
+        mlflow.start_run()
 
-    input = sys.argv[1]
-    df = load_csv(input)
+        input = sys.argv[1]
+        df = load_csv(input)
 
-    test(df, params)
-    mlflow.end_run()
+        test(df, params)
+        mlflow.end_run()
+    
+    with open("evaluate_drl.prof", "w") as f:
+        ps = pstats.Stats(pr, stream=f)
+        ps.sort_stats("cumulative")
+        ps.print_stats()
+    with open("evaluate_drl.prof", "w") as f:
+        ps = pstats.Stats(pr, stream=f)
+        ps.sort_stats("time")
+        ps.print_stats()
 
 
 if __name__ == "__main__":
