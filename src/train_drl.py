@@ -38,6 +38,7 @@ import torch.nn as nn
 import torch.nn.utils as utils
 import torch.optim as optim
 import mlflow
+from mlflow import trace
 from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential
 
@@ -368,7 +369,7 @@ def write_result(cm_memory, episode, n_output):
     accuracy = float(cm.diagonal().sum() / total) if total > 0 else 0.0
     return cm, accuracy
 
-
+@trace
 def train(df, params):
     logger = setup_logging("log/train_drl.log")
     logger.info("Starting training...")
@@ -459,7 +460,8 @@ def train(df, params):
     for i_episode in tqdm(range(params["n_episodes"])):
         random.seed(i_episode)
 
-        initial_state = env.reset()
+        initial_state, info = env.reset()
+        logger.info(info["sample_data_length"])
 
         state = to_tensor(initial_state, include_category)
 
@@ -467,7 +469,9 @@ def train(df, params):
         episode_steps = 0
         episode_losses = []
 
-        for t in tqdm(count(), leave=False):
+        p_bar = tqdm(total=1.0)
+
+        for t in count():
             action = select_action(state, select_params)
             select_params.steps_done += 1
             
@@ -481,8 +485,10 @@ def train(df, params):
             preserve_reward = torch.tensor([float(reward)], dtype=torch.float32, device=device)
 
             cm_index = info["confusion_matrix_index"] # tuple (action, answer)
+            cm_memory.append(list(cm_index)) # list of [action, answer]
 
-            cm_memory.append(cm_index.tolist()) # list of [action, answer]
+            progress = info.get("progress", 0.0)
+            p_bar.update(progress)
 
             next_state = to_tensor(raw_next_state, include_category) if not terminated else None
             memory.push(state, action, next_state, preserve_reward)

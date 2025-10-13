@@ -1259,7 +1259,7 @@ wheels = [
 [[package]]
 name = "flow-package"
 version = "0.1.9"
-source = { git = "https://github.com/Perpetuactivity/flow_package.git?branch=upgrade#526305f921fdc9854fbc7e6ae05e687dc44d6db1" }
+source = { git = "https://github.com/Perpetuactivity/flow_package.git?branch=upgrade#408414cb694e5c57ba4b16658d2284eb9ccf6a58" }
 dependencies = [
     { name = "gymnasium" },
     { name = "matplotlib" },
