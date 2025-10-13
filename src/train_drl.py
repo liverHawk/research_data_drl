@@ -55,6 +55,8 @@ from flow_package.multi_flow_env import MultiFlowEnv, InputType
 from utils import setup_logging, rolling_normalize
 from network import DeepFlowNetwork, DeepFlowNetworkV2
 from deep_learn import ReplayMemory, Transaction
+import cProfile
+import pstats
 
 
 def setup_mlflow(all_params):
@@ -236,17 +238,25 @@ def to_tensor(state, include_category=True):
 # ========================
 # バックグラウンドメトリクスロガー
 # ========================
+import signal
+
 class MetricsLogger:
     """バックグラウンドスレッドでメトリクスをMLflowに送信"""
     
-    def __init__(self, logger):
+    def __init__(self, logger, total_episodes):
         self.queue = Queue()
         self.metrics_history = []
-        self.running = True
+        self.running = False
         self.logger = logger
         self.thread = threading.Thread(target=self._worker, daemon=False)
-        self.thread.start()
-    
+        self.processed_count = 0  # 処理済みエピソード数を追跡
+        self.total_episodes = total_episodes
+        self.progress_bar = tqdm(total=total_episodes, desc="Logging Metrics", position=0)
+
+        # 強制終了シグナルのハンドラを設定
+        signal.signal(signal.SIGINT, self._handle_exit)
+        signal.signal(signal.SIGTERM, self._handle_exit)
+
     def _worker(self):
         """バックグラウンドでメトリクスを処理"""
         while self.running:
@@ -256,7 +266,8 @@ class MetricsLogger:
                     break
                 
                 episode, metrics = item
-                
+                start_time = time.time()
+
                 # メトリクスを履歴に保存
                 metrics_with_episode = {"episode": episode, **metrics}
                 self.metrics_history.append(metrics_with_episode)
@@ -270,6 +281,10 @@ class MetricsLogger:
                     # lossがある場合は記録
                     if "loss" in metrics and metrics["loss"] is not None:
                         mlflow.log_metric("loss", float(metrics["loss"]), step=episode)
+
+                    # 処理時間を記録
+                    elapsed_time = time.time() - start_time
+                    mlflow.log_metric("processing_time", elapsed_time, step=episode)
                     
                     # 10エピソードごとに詳細ログ
                     if episode % 10 == 0:
@@ -281,12 +296,22 @@ class MetricsLogger:
                 # キューのタスク完了を通知
                 self.queue.task_done()
                 
+                # 処理済みエピソード数を更新し、進捗を表示
+                self.processed_count += 1
+                self.progress_bar.update(1)
+                
             except Exception as e:
-                self.logger.warning(f"Error in metrics logger worker: {e}")
+                if self.queue.empty():
+                    time.sleep(100)
+                    continue
+                # self.logger.warning(f"Error in metrics logger worker: {e}")
                 continue
     
     def log(self, episode, metrics):
         """メトリクスをキューに追加（非ブロッキング）"""
+        if not self.running:
+            self.running = True
+            self.thread.start()
         self.queue.put((episode, metrics))
     
     def shutdown(self):
@@ -308,6 +333,9 @@ class MetricsLogger:
         else:
             self.logger.info("Metrics logger thread finished successfully")
         
+        # プログレスバーを閉じる
+        self.progress_bar.close()
+
         # 全メトリクスをCSVに保存
         if self.metrics_history:
             df = pd.DataFrame(self.metrics_history)
@@ -324,6 +352,11 @@ class MetricsLogger:
                 self.logger.warning(f"Failed to log metrics CSV to MLflow: {e}")
         
         return self.metrics_history
+
+    def _handle_exit(self, signum, frame):
+        """強制終了時にスレッドを安全に終了"""
+        self.logger.info("Received termination signal. Shutting down...")
+        self.shutdown()
 
 
 def write_result(cm_memory, episode, n_output):
@@ -344,7 +377,7 @@ def train(df, params):
     logger.info("Starting training...")
     
     # バックグラウンドメトリクスロガーを初期化
-    metrics_logger = MetricsLogger(logger)
+    metrics_logger = MetricsLogger(logger, params["n_episodes"])
     
     label_count = len(df["Label"].unique())
     reward_matrix = np.ones((label_count, label_count)) * -1.0
@@ -514,12 +547,28 @@ def main():
     with open("log/train_result.log", "w") as f:
         f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "\n")
 
-    mlflow.start_run()
-    df = load_csv(input_path)
+    with cProfile.Profile() as pr:
+        try:
+            mlflow.start_run()
+            print(f"MLflow run name: {mlflow.active_run().info.run_name}")
+            df = load_csv(input_path)
 
-    train(df, params)
-    mlflow.set_tag("status", "train_completed")
-    mlflow.end_run()
+            train(df, params)
+            mlflow.set_tag("status", "train_completed")
+            mlflow.end_run()
+        except Exception as e:
+            mlflow.set_tag("status", "train_failed")
+            mlflow.end_run()
+            raise e
+    
+    with open("train_drl.prof", "w") as f:
+        ps = pstats.Stats(pr, stream=f)
+        ps.sort_stats("cumulative")
+        ps.print_stats()
+    with open("train_drl.prof", "w") as f:
+        ps = pstats.Stats(pr, stream=f)
+        ps.sort_stats("time")
+        ps.print_stats()
 
 
 if __name__ == "__main__":
