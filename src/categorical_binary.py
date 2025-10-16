@@ -117,43 +117,43 @@ def save_csv(df, logger, _type="train"):
 
 
 def main():
-    with cProfile.Profile() as pr:
-        make_dir()
-        params = load_params()
-        logger = setup_logging(
-            os.path.join("log", "categorical_binary.log")
-        )
-        mlflow.start_run()
+    # with cProfile.Profile() as pr:
+    make_dir()
+    params = load_params()
+    logger = setup_logging(
+        os.path.join("log", "categorical_binary.log")
+    )
+    mlflow.start_run()
 
-        logger.info(f"Loading data from data/train/raw")
-        df = load_data()
-        logger.info(f"Data loaded with shape: {df.shape}")
+    logger.info(f"Loading data from data/train/raw")
+    df = load_data()
+    logger.info(f"Data loaded with shape: {df.shape}")
 
-        logger.info("Start categorical to binary conversion")
-        df = change_columns(df, logger)
-        logger.info(f"Categorical to binary conversion finished with shape: {df.shape}")
-        save_csv(df, logger)
+    logger.info("Start categorical to binary conversion")
+    df = change_columns(df, logger)
+    logger.info(f"Categorical to binary conversion finished with shape: {df.shape}")
+    save_csv(df, logger)
 
-        logger.info("Loading data from data/test/raw")
-        df = load_data(_type="test")
-        logger.info(f"Data loaded with shape: {df.shape}")
+    logger.info("Loading data from data/test/raw")
+    df = load_data(_type="test")
+    logger.info(f"Data loaded with shape: {df.shape}")
 
-        logger.info("Start categorical to binary conversion")
-        df = change_columns(df, logger)
-        logger.info(f"Categorical to binary conversion finished with shape: {df.shape}")
-        save_csv(df, logger, _type="test")
-        
-        mlflow.end_run()
+    logger.info("Start categorical to binary conversion")
+    df = change_columns(df, logger)
+    logger.info(f"Categorical to binary conversion finished with shape: {df.shape}")
+    save_csv(df, logger, _type="test")
+    
+    mlflow.end_run()
     
 
-    with open("categorical_binary.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("cumulative")
-        ps.print_stats()
-    with open("categorical_binary.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("time")
-        ps.print_stats()
+    # with open("categorical_binary.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("cumulative")
+    #     ps.print_stats()
+    # with open("categorical_binary.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("time")
+    #     ps.print_stats()
 
 
 

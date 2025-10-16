@@ -229,22 +229,22 @@ def main():
         print("Usage: python evaluate.py <test_data_directory>")
         sys.exit(1)
     params, input_path = load_params()
-    with cProfile.Profile() as pr:
-        mlflow.start_run()
+    # with cProfile.Profile() as pr:
+    mlflow.start_run()
 
-        df = load_csv(input_path)
+    df = load_csv(input_path)
 
-        test(df, params)
-        mlflow.end_run()
+    test(df, params)
+    mlflow.end_run()
     
-    with open("evaluate_drl.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("cumulative")
-        ps.print_stats()
-    with open("evaluate_drl.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("time")
-        ps.print_stats()
+    # with open("evaluate_drl.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("cumulative")
+    #     ps.print_stats()
+    # with open("evaluate_drl.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("time")
+    #     ps.print_stats()
 
 
 if __name__ == "__main__":
