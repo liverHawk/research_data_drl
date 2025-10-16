@@ -72,7 +72,18 @@ def _plot_weighted_f1(data, **params):
     return fig, ax
 
 
+def _normalize_confusion_matrix(data):
+    # divide by column sums
+    with np.errstate(all='ignore'):
+        col_sums = data.sum(axis=0, keepdims=True)
+        normalized = np.divide(data, col_sums, where=col_sums != 0)
+    return normalized
+
 def _plot_confusion_matrix(data, **params):
+    # check is data normalized (all values are not over 1.0)
+    if np.issubdtype(data.dtype, np.integer) and np.any(data > 1):
+        data = _normalize_confusion_matrix(data)
+
     fig, ax = plt.subplots(figsize=params.get("figsize", (6, 5)))
     sns.heatmap(
         data,
