@@ -292,7 +292,7 @@ class MetricsLogger:
                 
             except Exception as e:
                 if self.queue.qsize() == 0:
-                    time.sleep(10)
+                    time.sleep(2)
                     continue
                 continue
         
@@ -301,6 +301,9 @@ class MetricsLogger:
     def log(self, episode, metrics):
         """メトリクスをキューに追加（非ブロッキング）"""
         if not self.running:
+            f = open("train/metrics.csv", "w")
+            f.write("episode,reward,accuracy,steps,loss,elapsed_time\n")
+            f.close()
             self.running = True
             self.thread.start()
         self.queue.put((episode, metrics))
@@ -368,6 +371,27 @@ def write_result(cm_memory, episode, n_output):
     return cm, accuracy
 
 
+def post_metrics():
+    df = pd.read_csv("train/metrics.csv")
+    for index, row in tqdm(df.iterrows(), total=len(df), desc="Logging metrics"):
+        try:
+            episode = int(row["episode"])
+            reward = float(row["reward"])
+            accuracy = float(row["accuracy"])
+            steps = int(row["steps"])
+            loss = float(row["loss"])
+            elapsed_time = float(row["elapsed_time"])
+            mlflow.log_metric("reward", reward, step=episode)
+            mlflow.log_metric("accuracy", accuracy, step=episode)
+            mlflow.log_metric("steps", steps, step=episode)
+            mlflow.log_metric("loss", loss, step=episode)
+            mlflow.log_metric("elapsed_time", elapsed_time, step=episode)
+        except ValueError:
+            continue
+        except TypeError:
+            continue
+    return
+
 def train(df, params):
     drl_options = params.get("drl_options", {})
     params = params.get("train_drl", {})
@@ -384,6 +408,8 @@ def train(df, params):
 
     columns = df.columns.tolist()
     columns.remove("Label")
+
+    max_data_length = params.get("max_data_length", None)
 
     input = EnvConfig(
         data=df,
@@ -457,15 +483,17 @@ def train(df, params):
     # Target network更新頻度
     target_update_freq = params.get("target_update_freq", 10)
 
+    total_data_count = {i: 0 for i in range(n_actions)}
 
     for i_episode in tqdm(range(params["n_episodes"])):
         random.seed(i_episode)
 
         while True:
             initial_state, info = env.reset()
-            break
-            # if info["sample_data_length"] <= 100_000:
-            #     break
+            if max_data_length is None:
+                break
+            elif info["sample_data_length"] <= max_data_length:
+                break
         # logger.info(info["sample_data_length"])
 
         state = to_tensor(initial_state, include_category)
@@ -493,6 +521,7 @@ def train(df, params):
             cm_index = info["confusion_matrix_index"] # tuple (action, answer)
             # logger.info(cm_index)
             cm_memory.append(list(cm_index)) # list of [action, answer]
+            total_data_count[int(cm_index[1])] += 1
 
             next_state = to_tensor(raw_next_state, include_category) if not terminated else None
             memory.push(state, action, next_state, preserve_reward)
@@ -556,6 +585,8 @@ def train(df, params):
     torch.save(policy_net.state_dict(), path)
     mlflow.log_artifact(path, artifact_path="models")
     logger.info("Training completed.")
+    mlflow.log_dict(total_data_count, "train/total_data_count.json")
+    post_metrics()
 
 
 def main():
@@ -566,6 +597,7 @@ def main():
         f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "\n")
 
     with mlflow.start_run():
+        main_run_id = mlflow.active_run().info.run_id
         with cProfile.Profile() as pr:
             try:
                 print(f"MLflow run name: {mlflow.active_run().info.run_name}")
@@ -590,7 +622,10 @@ def main():
     while i < 2:
         i += 1
         if mlflow.active_run() is not None:
+            active_run_id = mlflow.active_run().info.run_id
             mlflow.end_run()
+            if active_run_id != main_run_id:
+                mlflow.delete_run(active_run_id)
 
 
 if __name__ == "__main__":
