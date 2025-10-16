@@ -80,31 +80,31 @@ def train(df, params, logger):
 
 
 def main():
-    with cProfile.Profile() as pr:
-        make_dir()
-        params, data_path = load_params()
-        logger = setup_logging(
-            os.path.abspath(os.path.join("log", "train.log"))
-        )
+    # with cProfile.Profile() as pr:
+    make_dir()
+    params, data_path = load_params()
+    logger = setup_logging(
+        os.path.abspath(os.path.join("log", "train.log"))
+    )
 
-        mlflow.start_run()
+    mlflow.start_run()
 
-        logger.info("Loading data...")
-        df = load_data(data_path)
-        logger.info(f"Data shape: {df.shape}")
+    logger.info("Loading data...")
+    df = load_data(data_path)
+    logger.info(f"Data shape: {df.shape}")
 
-        train(df, params, logger)
+    train(df, params, logger)
 
-        mlflow.end_run()
+    mlflow.end_run()
     
-    with open("train.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("cumulative")
-        ps.print_stats()
-    with open("train.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("time")
-        ps.print_stats()
+    # with open("train.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("cumulative")
+    #     ps.print_stats()
+    # with open("train.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("time")
+    #     ps.print_stats()
 
 
 if __name__ == "__main__":

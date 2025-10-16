@@ -598,25 +598,25 @@ def main():
 
     with mlflow.start_run():
         main_run_id = mlflow.active_run().info.run_id
-        with cProfile.Profile() as pr:
-            try:
-                print(f"MLflow run name: {mlflow.active_run().info.run_name}")
-                df = load_csv(input_path)
+        # with cProfile.Profile() as pr:
+        try:
+            print(f"MLflow run name: {mlflow.active_run().info.run_name}")
+            df = load_csv(input_path)
 
-                train(df, params)
-                mlflow.set_tag("status", "train_completed")
-            except Exception as e:
-                mlflow.set_tag("status", "train_failed")
-                raise e
+            train(df, params)
+            mlflow.set_tag("status", "train_completed")
+        except Exception as e:
+            mlflow.set_tag("status", "train_failed")
+            raise e
     
-    with open("train_drl.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("cumulative")
-        ps.print_stats()
-    with open("train_drl.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("time")
-        ps.print_stats()
+    # with open("train_drl.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("cumulative")
+    #     ps.print_stats()
+    # with open("train_drl.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("time")
+    #     ps.print_stats()
     
     i = 0
     while i < 2:

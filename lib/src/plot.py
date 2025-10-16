@@ -89,7 +89,7 @@ def _plot_confusion_matrix(data, **params):
         data,
         annot=True,
         cmap="Blues",
-        fmt=params.get("fmt", ".2f"),
+        fmt=params.get("fmt", ".3f"),
         linewidths=1,
         linecolor="black",
         cbar=False,

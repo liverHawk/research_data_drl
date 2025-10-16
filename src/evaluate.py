@@ -94,22 +94,22 @@ def evaluate(df, params, logger):
 
 
 def main():
-    with cProfile.Profile() as pr:
-        params, data_path = load_params()
-        logger = setup_logging(
-            os.path.abspath(os.path.join("log", "evaluate.log"))
-        )
-        df = load_data(data_path)
-        evaluate(df, params, logger)
+    # with cProfile.Profile() as pr:
+    params, data_path = load_params()
+    logger = setup_logging(
+        os.path.abspath(os.path.join("log", "evaluate.log"))
+    )
+    df = load_data(data_path)
+    evaluate(df, params, logger)
     
-    with open("evaluate.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("cumulative")
-        ps.print_stats()
-    with open("evaluate.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("time")
-        ps.print_stats()
+    # with open("evaluate.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("cumulative")
+    #     ps.print_stats()
+    # with open("evaluate.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("time")
+    #     ps.print_stats()
 
 
 if __name__ == "__main__":

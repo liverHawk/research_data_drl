@@ -110,22 +110,22 @@ def generate_data(df):
 
 
 def main():
-    with cProfile.Profile() as pr:
-        data, params = load_data()
-        setup_mlflow(params)
+    # with cProfile.Profile() as pr:
+    data, params = load_data()
+    setup_mlflow(params)
 
-        mlflow.start_run()
-        generate_data(data)
-        mlflow.end_run()
+    mlflow.start_run()
+    generate_data(data)
+    mlflow.end_run()
     
-    with open("generate_data.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("cumulative")
-        ps.print_stats()
-    with open("generate_data.prof", "w") as f:
-        ps = pstats.Stats(pr, stream=f)
-        ps.sort_stats("time")
-        ps.print_stats()
+    # with open("generate_data.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("cumulative")
+    #     ps.print_stats()
+    # with open("generate_data.prof", "w") as f:
+    #     ps = pstats.Stats(pr, stream=f)
+    #     ps.sort_stats("time")
+    #     ps.print_stats()
 
 
 
