@@ -29,7 +29,7 @@ train_drl:
   include_category: False
 
   update_target_steps: 200
-  batch_size: 16
+  batch_size: 32
   gamma: 0.99
   eps_start: 0.9
   eps_end: 0.05
@@ -37,8 +37,8 @@ train_drl:
   tau: 0.005
   lr: 0.001
   memory_size: 100000
-  n_episodes: 100
-  max_data_length: 1000
+  n_episodes: 1
+  max_data_length: null
 
 evaluate_drl:
   include_category: False

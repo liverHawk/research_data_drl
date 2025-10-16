@@ -490,7 +490,7 @@ def train(df, params):
 
         while True:
             initial_state, info = env.reset()
-            if max_data_length is None:
+            if max_data_length is None or type(max_data_length) != int:
                 break
             elif info["sample_data_length"] <= max_data_length:
                 break
