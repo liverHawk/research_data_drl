@@ -63,7 +63,7 @@ stages:
       - train_drl.lr
       - train_drl.memory_size
       - train_drl.n_episodes
-      - train_drl.sample_size
+      - train_drl.max_data_length
       - train_drl.include_category
     outs:
       - log/train_drl.log

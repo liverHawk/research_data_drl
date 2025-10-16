@@ -37,8 +37,8 @@ train_drl:
   tau: 0.005
   lr: 0.001
   memory_size: 100000
-  n_episodes: 100
-  sample_size: 10000
+  n_episodes: 10
+  max_data_length: 100000
 
 evaluate_drl:
   include_category: False
