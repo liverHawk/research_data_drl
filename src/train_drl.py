@@ -585,6 +585,12 @@ def main():
         ps = pstats.Stats(pr, stream=f)
         ps.sort_stats("time")
         ps.print_stats()
+    
+    i = 0
+    while i < 2:
+        i += 1
+        if mlflow.active_run() is not None:
+            mlflow.end_run()
 
 
 if __name__ == "__main__":
