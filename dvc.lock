@@ -18,123 +18,123 @@ stages:
     outs:
     - path: data/test/raw
       hash: md5
-      md5: 1d77fa4db95117bc950430bd7a23b88b.dir
-      size: 61306713
+      md5: 5757e421ac543c184d75609fb231769c.dir
+      size: 61359673
       nfiles: 7
     - path: data/train/raw
       hash: md5
-      md5: 0c948f2ef0fca09d17c8d3618dd6a2eb.dir
-      size: 143222048
+      md5: 288f5d7c7b4d441c32e7d57c97cccd31.dir
+      size: 143159100
       nfiles: 15
     - path: log/build_dataset.log
       hash: md5
-      md5: a35597fa64f096f5c5a5db1b9ecf8537
+      md5: 0a3a620a5c7650495556d0dd91618e71
       size: 435
   categorical_binary:
     cmd: uv run src/categorical_binary.py
     deps:
     - path: data/test/raw
       hash: md5
-      md5: 1d77fa4db95117bc950430bd7a23b88b.dir
-      size: 61306713
+      md5: 5757e421ac543c184d75609fb231769c.dir
+      size: 61359673
       nfiles: 7
     - path: data/train/raw
       hash: md5
-      md5: 0c948f2ef0fca09d17c8d3618dd6a2eb.dir
-      size: 143222048
+      md5: 288f5d7c7b4d441c32e7d57c97cccd31.dir
+      size: 143159100
       nfiles: 15
     - path: src/categorical_binary.py
       hash: md5
-      md5: 4caa5955a45a96667b03134d9a57103c
-      size: 5049
+      md5: 1e2e21d47879a5186318408d3f93fd40
+      size: 4979
     outs:
     - path: data/test/binary
       hash: md5
-      md5: 15bc6bcdfdf2633da286cb51a7f3f86c.dir
-      size: 62455662
+      md5: dbec579426c10b5bf987234c802df353.dir
+      size: 62508745
       nfiles: 7
     - path: data/train/binary
       hash: md5
-      md5: 3eb45e7e5ec627a91b945c3856a267fc.dir
-      size: 145907904
+      md5: ca8f8b2a6084168ede27688126ea6a24.dir
+      size: 145847837
       nfiles: 15
     - path: log/categorical_binary.log
       hash: md5
-      md5: 7766811df751ff36658c0abd92753922
+      md5: a2736252a891b48feff5470432ba7d87
       size: 1243
   train:
     cmd: uv run src/train.py data/train/binary
     deps:
     - path: data/train/binary
       hash: md5
-      md5: 3eb45e7e5ec627a91b945c3856a267fc.dir
-      size: 145907904
+      md5: ca8f8b2a6084168ede27688126ea6a24.dir
+      size: 145847837
       nfiles: 15
     - path: src/train.py
       hash: md5
-      md5: 83be84c37cd0bb2222bcb78a34a67763
-      size: 2856
+      md5: 432136c3c542f644b82f6d892315a05b
+      size: 2830
     params:
       params.yaml:
         train.data_path: data/train/binary
     outs:
     - path: log/train.log
       hash: md5
-      md5: c58d95f6ebee4e694fcdd37222a42532
+      md5: 5a64bce70bb1d3f96539575dab419603
       size: 338
     - path: model/improved_c45_model.joblib
       hash: md5
-      md5: b2bf231a1663c3967f754ccc62d0ce6a
-      size: 5433
+      md5: 4a09061dcd003411e272ede4f0e533e2
+      size: 5485
   evaluate:
     cmd: uv run src/evaluate.py data/test/binary
     deps:
     - path: data/test/binary
       hash: md5
-      md5: 15bc6bcdfdf2633da286cb51a7f3f86c.dir
-      size: 62455662
+      md5: dbec579426c10b5bf987234c802df353.dir
+      size: 62508745
       nfiles: 7
     - path: model/improved_c45_model.joblib
       hash: md5
-      md5: b2bf231a1663c3967f754ccc62d0ce6a
-      size: 5433
+      md5: 4a09061dcd003411e272ede4f0e533e2
+      size: 5485
     - path: src/evaluate.py
       hash: md5
-      md5: baa506876dddbf6003bf4fa68727b404
-      size: 3333
+      md5: 0b809db2705c94c8d83db040f1223259
+      size: 3327
     params:
       params.yaml:
         evaluate.data_path: data/test/binary
     outs:
     - path: log/evaluate.log
       hash: md5
-      md5: 4295746f9697f986dfd3d7621cae1a94
+      md5: 9871157258ef57f22dbcfafff7472eb0
       size: 132
   train_drl:
     cmd: uv run src/train_drl.py data/train/binary
     deps:
     - path: data/train/binary
       hash: md5
-      md5: 3eb45e7e5ec627a91b945c3856a267fc.dir
-      size: 145907904
+      md5: ca8f8b2a6084168ede27688126ea6a24.dir
+      size: 145847837
       nfiles: 15
     - path: src/train_drl.py
       hash: md5
-      md5: 0fd69f7b277866eeafc0048a4d98ec14
-      size: 22612
+      md5: 24141b4ebc086b231e00701e81431cb0
+      size: 22630
     params:
       params.yaml:
         train.data_path: data/train/binary
-        train_drl.batch_size: 16
+        train_drl.batch_size: 32
         train_drl.eps_decay: 10000000
         train_drl.eps_end: 0.05
         train_drl.eps_start: 0.9
         train_drl.gamma: 0.99
         train_drl.include_category: false
         train_drl.lr: 0.001
-        train_drl.max_data_length: 1000
+        train_drl.max_data_length:
         train_drl.memory_size: 100000
-        train_drl.n_episodes: 3
+        train_drl.n_episodes: 1
         train_drl.port_dim: 32
         train_drl.protocol_dim: 8
         train_drl.tau: 0.005
@@ -142,32 +142,32 @@ stages:
     outs:
     - path: log/train_drl.log
       hash: md5
-      md5: 13a8be0eff14e676278dfa8e662ac773
+      md5: e9b93ff1fb55043941a00d3868b82bd3
       size: 910
     - path: log/train_result.log
       hash: md5
-      md5: bef8e81977f561221da344a5462aafc2
-      size: 946
+      md5: 2e76fc1b9d69589529503bdb44fe1181
+      size: 762
     - path: model/drl_model.pth
       hash: md5
-      md5: bfc6ea35a6083055929ad234d6d4f527
-      size: 2346989
+      md5: 253f7188dc72b3eb9fe52aee3b13feaa
+      size: 2347053
   evaluate_drl:
     cmd: uv run src/evaluate_drl.py data/test/binary
     deps:
     - path: data/test/binary
       hash: md5
-      md5: 15bc6bcdfdf2633da286cb51a7f3f86c.dir
-      size: 62455662
+      md5: dbec579426c10b5bf987234c802df353.dir
+      size: 62508745
       nfiles: 7
     - path: model/drl_model.pth
       hash: md5
-      md5: bfc6ea35a6083055929ad234d6d4f527
-      size: 2346989
+      md5: 253f7188dc72b3eb9fe52aee3b13feaa
+      size: 2347053
     - path: src/evaluate_drl.py
       hash: md5
-      md5: d78d529f659bdc89b24a8dffad3a8bdc
-      size: 8490
+      md5: 45df134789b43874b19c9b678eb648f8
+      size: 8492
     params:
       params.yaml:
         evaluate.data_path: data/test/binary
@@ -176,10 +176,10 @@ stages:
     outs:
     - path: evaluate/plots
       hash: md5
-      md5: b986ff61e490428fcc8969ceaa97acc7.dir
-      size: 17215
+      md5: 749c55776dd33519222a16efe6e1dfa2.dir
+      size: 18085
       nfiles: 1
     - path: log/evaluate_drl.log
       hash: md5
-      md5: 4eacc8859e65d54c89da6dd36af5d34f
+      md5: 649a2ae467925ac7b175ec7c735b9a7d
       size: 242
