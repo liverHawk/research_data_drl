@@ -132,7 +132,7 @@ stages:
         train_drl.gamma: 0.99
         train_drl.include_category: false
         train_drl.lr: 0.001
-        train_drl.max_data_length: 100000
+        train_drl.max_data_length: 1000
         train_drl.memory_size: 100000
         train_drl.n_episodes: 100
         train_drl.port_dim: 32
@@ -157,17 +157,17 @@ stages:
     deps:
     - path: data/test/binary
       hash: md5
-      md5: 15bc6bcdfdf2633da286cb51a7f3f86c.dir
+      md5: a3151d78b43550757d931a690bd7acfd.dir
       size: 62455662
       nfiles: 7
     - path: model/drl_model.pth
       hash: md5
-      md5: 511ee36fcc72bd2e2c12448a8e506d07
+      md5: 8af74706c082da07a14b04486165bbe7
       size: 2346989
     - path: src/evaluate_drl.py
       hash: md5
-      md5: d78d529f659bdc89b24a8dffad3a8bdc
-      size: 8490
+      md5: 45df134789b43874b19c9b678eb648f8
+      size: 8492
     params:
       params.yaml:
         evaluate.data_path: data/test/binary
@@ -176,10 +176,10 @@ stages:
     outs:
     - path: evaluate/plots
       hash: md5
-      md5: 28dd594f0c1920d68bf6f6446abed8a4.dir
-      size: 18436
+      md5: a701ad02001bf62c58c787f6c8d7ba5d.dir
+      size: 16657
       nfiles: 1
     - path: log/evaluate_drl.log
       hash: md5
-      md5: f64ad81735597631232ca4559a342057
+      md5: d7eaf2e8b630f2304c3ba06ead023737
       size: 242
