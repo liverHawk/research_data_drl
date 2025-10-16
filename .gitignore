@@ -4,3 +4,4 @@ build
 /mlartifacts
 /nb/test_data
 config.json
+__pycache__

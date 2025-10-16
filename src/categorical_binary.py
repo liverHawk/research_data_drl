@@ -1,5 +1,4 @@
 import os
-import sys
 import mlflow
 import yaml
 import cProfile

@@ -26,6 +26,7 @@ class SelectActionParams:
     steps_done: int = 0
 
 
+import csv
 import os
 import sys
 import yaml
@@ -38,26 +39,27 @@ import torch.nn as nn
 import torch.nn.utils as utils
 import torch.optim as optim
 import mlflow
-from mlflow import trace
-from azure.ai.ml import MLClient
-from azure.identity import DefaultAzureCredential
+import cProfile
+import pstats
+import threading
 
 from itertools import count
 from glob import glob
-from torch.amp import autocast, GradScaler
+from torch.amp import GradScaler
 from tqdm import tqdm
-import threading
 from queue import Queue
-from collections import deque
+from azure.ai.ml import MLClient
+from azure.identity import DefaultAzureCredential
 
 import flow_package as fp
 from flow_package.multi_df_env import MultiDfEnv, EnvConfig
 
 from utils import setup_logging, rolling_normalize
-from network import DeepFlowNetwork, DeepFlowNetworkV2
+from network import DeepFlowNetwork
+from network_v2 import DeepFlowNetworkV2
 from deep_learn import ReplayMemory, Transaction
-import cProfile
-import pstats
+
+os.environ["MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING"] = "true"
 
 
 def setup_mlflow(all_params):
@@ -69,10 +71,10 @@ def setup_mlflow(all_params):
             config_path=path
         )
         mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
-    else:
+    elif all_params["mlflow"]["use_dagshub"]:
         import dagshub
         dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
-        mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
+    mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
     
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     mlflow.set_experiment(
@@ -116,8 +118,8 @@ def load_params():
     all_params = yaml.safe_load(open("params.yaml"))
 
     setup_mlflow(all_params)
-    params = all_params["train_drl"]
-    return params, input_path
+    # params = all_params["train_drl"]
+    return all_params, input_path
 
 
 # ========================
@@ -250,6 +252,7 @@ class MetricsLogger:
         self.running = False
         self.logger = logger
         self.thread = threading.Thread(target=self._worker, daemon=False)
+        # self.progress_bar = tqdm(total=total_episodes, desc="Logging Metrics", position=0)
         # self.thread.start()
     
     def _worker(self):
@@ -269,22 +272,14 @@ class MetricsLogger:
                 
                 # MLflowにログを送信（非ブロッキング）
                 try:
-                    mlflow.log_metric("reward", float(metrics["reward"]), step=episode)
-                    mlflow.log_metric("accuracy", float(metrics["accuracy"]), step=episode)
-                    mlflow.log_metric("episode_length", int(metrics["steps"]), step=episode)
-                    
-                    # lossがある場合は記録
-                    if "loss" in metrics and metrics["loss"] is not None:
-                        mlflow.log_metric("loss", float(metrics["loss"]), step=episode)
-
-                    # 処理時間を記録
                     elapsed_time = time.time() - start_time
-                    mlflow.log_metric("processing_time", elapsed_time, step=episode)
-                    
-                    # 10エピソードごとに詳細ログ
-                    if episode % 10 == 0:
-                        mlflow.log_metric("buffer_size", int(metrics.get("buffer_size", 0)), step=episode)
-                        mlflow.log_metric("epsilon", float(metrics.get("epsilon", 0)), step=episode)
+                    with open("train/metrics.csv", "a") as f:
+                        writer = csv.writer(f)
+                        if "loss" in metrics and metrics["loss"] is not None:
+                            writer.writerow([episode, metrics["reward"], metrics["accuracy"], metrics["steps"], metrics["loss"], elapsed_time])
+                        else:
+                            writer.writerow([episode, metrics["reward"], metrics["accuracy"], metrics["steps"], "", elapsed_time])
+
                 except Exception as e:
                     self.logger.warning(f"MLflow logging failed: {e}")
                 
@@ -292,14 +287,16 @@ class MetricsLogger:
                 self.queue.task_done()
                 
                 # 処理済みエピソード数を更新し、進捗を表示
-                self.processed_count += 1
-                self.progress_bar.update(1)
+                # self.processed_count += 1
+                # self.progress_bar.update(1)
                 
             except Exception as e:
-                if len(self.queue) == 0:
+                if self.queue.qsize() == 0:
                     time.sleep(1000)
                     continue
                 continue
+        
+        return
     
     def log(self, episode, metrics):
         """メトリクスをキューに追加（非ブロッキング）"""
@@ -315,12 +312,7 @@ class MetricsLogger:
     def shutdown(self):
         """ロガーを終了してメトリクスを保存"""
         self.logger.info("Waiting for all metrics to be logged...")
-        
-        # キューが空になるまで待つ
-        self.queue.join()
-        self.logger.info(f"All metrics in queue processed. Queue size: {self.queue.qsize()}")
-        
-        # 終了シグナルを送信
+        self.logger.info(f"Current queue size: {self.queue.qsize()}")
         self.running = False
         self.queue.put(None)
         
@@ -330,9 +322,10 @@ class MetricsLogger:
             self.logger.warning("Metrics logger thread did not finish in time")
         else:
             self.logger.info("Metrics logger thread finished successfully")
+        self.thread
         
         # プログレスバーを閉じる
-        self.progress_bar.close()
+        # self.progress_bar.close()
 
         # 全メトリクスをCSVに保存
         if self.metrics_history:
@@ -348,6 +341,8 @@ class MetricsLogger:
                 self.logger.info("Metrics CSV uploaded to MLflow")
             except Exception as e:
                 self.logger.warning(f"Failed to log metrics CSV to MLflow: {e}")
+        if mlflow.active_run() is not None:
+            mlflow.end_run()
         
         return self.metrics_history
 
@@ -360,7 +355,10 @@ class MetricsLogger:
 def write_result(cm_memory, episode, n_output):
     # 混同行列の計算
     cm = np.zeros((n_output, n_output), dtype=int)
-    for action, answer in cm_memory:
+    # print(cm_memory)
+    for log in cm_memory:
+        action = int(log[0])
+        answer = int(log[1])
         cm[action][answer] += 1
     with open("log/train_result.log", "a") as f:
         f.write(f"Episode {episode}:\n")
@@ -369,8 +367,11 @@ def write_result(cm_memory, episode, n_output):
     accuracy = float(cm.diagonal().sum() / total) if total > 0 else 0.0
     return cm, accuracy
 
-@trace
+
 def train(df, params):
+    drl_options = params.get("drl_options", {})
+    params = params.get("train_drl", {})
+
     logger = setup_logging("log/train_drl.log")
     logger.info("Starting training...")
     
@@ -388,10 +389,10 @@ def train(df, params):
         data=df,
         label_column="Label",
         render_mode=None,
-        window_size=params.get("window_size", 10),
-        max_steps=params.get("max_steps", 100),
+        window_size=drl_options.get("window_size", 10),
+        max_steps=drl_options.get("max_steps", 100),
         normalize_method="rolling",
-        rolling_window=params.get("rolling_window", 10),
+        rolling_window=drl_options.get("rolling_window", 10),
     )
     mlflow.log_params({
         "window_size": input.window_size,
@@ -460,8 +461,11 @@ def train(df, params):
     for i_episode in tqdm(range(params["n_episodes"])):
         random.seed(i_episode)
 
-        initial_state, info = env.reset()
-        logger.info(info["sample_data_length"])
+        while True:
+            initial_state, info = env.reset()
+            if info["sample_data_length"] <= 10_000:
+                break
+        # logger.info(info["sample_data_length"])
 
         state = to_tensor(initial_state, include_category)
 
@@ -469,13 +473,14 @@ def train(df, params):
         episode_steps = 0
         episode_losses = []
 
-        p_bar = tqdm(total=1.0)
+        p_bar = tqdm(total=int(info["sample_data_length"]), desc=f"Episode {i_episode}", leave=False)
 
         for t in count():
             action = select_action(state, select_params)
             select_params.steps_done += 1
             
             raw_next_state, reward, terminated, _, info = env.step(action.item())
+            p_bar.update(1)
 
             # Ensure reward is a scalar by summing if it's an array/list
             if isinstance(reward, (list, tuple, np.ndarray)):
@@ -485,10 +490,8 @@ def train(df, params):
             preserve_reward = torch.tensor([float(reward)], dtype=torch.float32, device=device)
 
             cm_index = info["confusion_matrix_index"] # tuple (action, answer)
+            # logger.info(cm_index)
             cm_memory.append(list(cm_index)) # list of [action, answer]
-
-            progress = info.get("progress", 0.0)
-            p_bar.update(progress)
 
             next_state = to_tensor(raw_next_state, include_category) if not terminated else None
             memory.push(state, action, next_state, preserve_reward)
@@ -502,6 +505,7 @@ def train(df, params):
 
             if terminated:
                 break
+        p_bar.close()
 
         # エピソード終了後の最小限の処理
         cm, accuracy = write_result(cm_memory, i_episode, n_actions)
@@ -544,7 +548,10 @@ def train(df, params):
     logger.info(f"Logged {len(metrics_history)} episodes")
 
     # 学習終了後にモデルを保存
-    path = os.path.join("model", "drl_model.pth")
+    if include_category:
+        path = os.path.join("model", "drl_model_with_category.pth")
+    else:
+        path = os.path.join("model", "drl_model.pth")
     torch.save(policy_net.state_dict(), path)
     mlflow.log_artifact(path, artifact_path="models")
     logger.info("Training completed.")
@@ -557,19 +564,17 @@ def main():
     with open("log/train_result.log", "w") as f:
         f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "\n")
 
-    with cProfile.Profile() as pr:
-        try:
-            mlflow.start_run()
-            print(f"MLflow run name: {mlflow.active_run().info.run_name}")
-            df = load_csv(input_path)
+    with mlflow.start_run():
+        with cProfile.Profile() as pr:
+            try:
+                print(f"MLflow run name: {mlflow.active_run().info.run_name}")
+                df = load_csv(input_path)
 
-            train(df, params)
-            mlflow.set_tag("status", "train_completed")
-            mlflow.end_run()
-        except Exception as e:
-            mlflow.set_tag("status", "train_failed")
-            mlflow.end_run()
-            raise e
+                train(df, params)
+                mlflow.set_tag("status", "train_completed")
+            except Exception as e:
+                mlflow.set_tag("status", "train_failed")
+                raise e
     
     with open("train_drl.prof", "w") as f:
         ps = pstats.Stats(pr, stream=f)

@@ -12,16 +12,41 @@ from glob import glob
 from tqdm import tqdm
 
 import flow_package as fp
-from flow_package.multi_flow_env import MultiFlowEnv, InputType
+from flow_package.multi_df_env import MultiDfEnv, EnvConfig
 
 from utils import setup_logging, rolling_normalize
-from network import DeepFlowNetwork, DeepFlowNetworkV2
+from network import DeepFlowNetwork
+from network_v2 import DeepFlowNetworkV2
 
 # 追加インポート: mlflow とプロットユーティリティ
 import mlflow
 import plot as plot_lib
 from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential
+
+os.environ["MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING"] = "true"
+
+
+# 追加: デバイス設定を学習コードと同じロジックで統一
+if torch.cuda.is_available():
+    device = torch.device("cuda:1")
+elif torch.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
+
+
+def load_params():
+    if len(sys.argv) != 2:
+        print("Usage: python src/evaluate_drl.py <input_file_directory>")
+        sys.exit(1)
+
+    input_path = sys.argv[1]
+    all_params = yaml.safe_load(open("params.yaml"))
+
+    setup_mlflow(all_params)
+    # params = all_params["evaluate_drl"]
+    return all_params, input_path
 
 
 def setup_mlflow(all_params):
@@ -91,36 +116,49 @@ def write_result(cm_memory, prefix):
 
 
 def to_tensor(state, include_category=True):
+    # 学習側と同じように device を渡す
     if include_category:
-        return fp.to_tensor(state)
+        return fp.to_tensor(state, device=device)
     else:
-        return torch.tensor(state)
+        return torch.tensor(state, device=device, dtype=torch.float32)
 
 
-def test(df, params):
-    input = InputType(
+def test(df, all_params):
+    drl_options = all_params.get("drl_options", {})
+    params = all_params.get("evaluate_drl", {})
+    
+    input = EnvConfig(
         data=df,
-        is_test=True,
-        normalize_exclude_columns=["Protocol", "Destination Port"],
-        # exclude_columns=["Attempted Category"],
+        label_column="Label",
+        render_mode=None,
+        window_size=drl_options.get("window_size", 10),
+        max_steps=drl_options.get("max_steps", 100),
+        normalize_method="rolling",
+        rolling_window=drl_options.get("rolling_window", 10),
+        test_mode=True,
     )
-    env = MultiFlowEnv(input)
+    env = MultiDfEnv(input)
 
+    print(params)
     include_category = params.get("include_category", True)
 
-    if include_category:
-        network = DeepFlowNetwork(
-            n_inputs=env.observation_space.shape[0],
-            n_outputs=env.action_space.n,
-        )
-    else:
-        network = DeepFlowNetworkV2(
-            n_inputs=env.observation_space.shape[0],
-            n_outputs=env.action_space.n,
-        )
+    # 環境から正しい次元を取得してモデルを同じ呼び出し方で作る
+    n_states = env.observation_space.shape[0]
+    n_actions = env.action_space.n
 
-    path = os.path.join("model", "drl_model.pth")
-    network.load_state_dict(torch.load(path))
+    if include_category:
+        network = DeepFlowNetwork(n_states, n_actions).to(device)
+    else:
+        network = DeepFlowNetworkV2(n_states, n_actions).to(device)
+
+    # 学習側で保存したファイル名に合わせて読み込む
+    if include_category:
+        path = os.path.join("model", "drl_model_with_category.pth")
+    else:
+        path = os.path.join("model", "drl_model.pth")
+
+    # デバイスを考慮してロード
+    network.load_state_dict(torch.load(path, map_location=device))
     network.eval()
 
     cm_memory = []
@@ -128,33 +166,40 @@ def test(df, params):
     log_path = os.path.join("log", "evaluate_drl.log")
     logger = setup_logging(log_path)
     logger.info("Starting evaluation...")
+
+    sum_rewards = 0.0
     
     for i_loop in range(1):
-        raw_state = env.reset()
+        raw_state, _ = env.reset()
         try:
-            state = to_tensor(raw_state)
+            state = to_tensor(raw_state, include_category=include_category)
         except Exception as e:
             raise ValueError(f"Error converting state to tensor: {e}")
         progress_bar = tqdm(range(len(df)), desc=f"Evaluation Loop {i_loop+1}")
         for t in count():
             with torch.no_grad():
-                predicted_action = network(state).max(1).indices.view(1, 1)
+                predicted_action = network(state)
+                if predicted_action.dim() == 1:
+                    predicted_action = predicted_action.unsqueeze(0)
+                predicted_action = predicted_action.max(1)[1].view(1, 1)
 
             raw_next_state, reward, terminated, _, info = env.step(predicted_action.item())
+            sum_rewards += reward
             # predicted と actual を混同行列用に保存（predicted, actual）
-            actual_answer = info["answer"]
+            actual_answer = int(info["confusion_matrix_index"][1])
             cm_memory.append([predicted_action, actual_answer])
 
             if terminated:
                 break
             try:
-                next_state = to_tensor(raw_next_state)
+                next_state = to_tensor(raw_next_state, include_category=include_category)
             except Exception as e:
                 raise ValueError(f"Error converting next state to tensor: {e}")
 
             state = next_state
             progress_bar.update(1)
-
+        if i_loop > 0 and (i_loop + 1) % 5_000 == 0:
+            mlflow.log_trace("evaluate_drl", f"Step {i_loop+1}", {"sum_rewards": sum_rewards})
         progress_bar.close()
 
     logger.info("Evaluation completed.")
@@ -183,14 +228,11 @@ def main():
     if len(sys.argv) != 2:
         print("Usage: python evaluate.py <test_data_directory>")
         sys.exit(1)
+    params, input_path = load_params()
     with cProfile.Profile() as pr:
-        params = yaml.safe_load(open("params.yaml"))
-
-        setup_mlflow(params)
         mlflow.start_run()
 
-        input = sys.argv[1]
-        df = load_csv(input)
+        df = load_csv(input_path)
 
         test(df, params)
         mlflow.end_run()
