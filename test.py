@@ -2,6 +2,7 @@ import torch
 import os
 
 # Try each GPU individually
+print(f'Found {torch.cuda.device_count()} GPU(s).')
 for i in range(torch.cuda.device_count()):
     try:
         device = torch.device(f'cuda:{i}')

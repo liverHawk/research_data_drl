@@ -273,7 +273,7 @@ class MetricsLogger:
                 # MLflowにログを送信（非ブロッキング）
                 try:
                     elapsed_time = time.time() - start_time
-                    with open("train/metrics.csv", "a") as f:
+                    with open("train/metrics_drl.csv", "a") as f:
                         writer = csv.writer(f)
                         if "loss" in metrics and metrics["loss"] is not None:
                             writer.writerow([episode, metrics["reward"], metrics["accuracy"], metrics["steps"], metrics["loss"], elapsed_time])
@@ -301,7 +301,7 @@ class MetricsLogger:
     def log(self, episode, metrics):
         """メトリクスをキューに追加（非ブロッキング）"""
         if not self.running:
-            f = open("train/metrics.csv", "w")
+            f = open("train/metrics_drl.csv", "w")
             f.write("episode,reward,accuracy,steps,loss,elapsed_time\n")
             f.close()
             self.running = True
@@ -344,8 +344,8 @@ class MetricsLogger:
                 self.logger.info("Metrics CSV uploaded to MLflow")
             except Exception as e:
                 self.logger.warning(f"Failed to log metrics CSV to MLflow: {e}")
-        if mlflow.active_run() is not None:
-            mlflow.end_run()
+        # if mlflow.active_run() is not None:
+        #     mlflow.end_run()
         
         return self.metrics_history
 
@@ -372,7 +372,7 @@ def write_result(cm_memory, episode, n_output):
 
 
 def post_metrics():
-    df = pd.read_csv("train/metrics.csv")
+    df = pd.read_csv("train/metrics_drl.csv")
     for index, row in tqdm(df.iterrows(), total=len(df), desc="Logging metrics"):
         try:
             episode = int(row["episode"])
@@ -380,12 +380,12 @@ def post_metrics():
             accuracy = float(row["accuracy"])
             steps = int(row["steps"])
             loss = float(row["loss"])
-            elapsed_time = float(row["elapsed_time"])
+            # elapsed_time = float(row["elapsed_time"])
             mlflow.log_metric("reward", reward, step=episode)
             mlflow.log_metric("accuracy", accuracy, step=episode)
             mlflow.log_metric("steps", steps, step=episode)
             mlflow.log_metric("loss", loss, step=episode)
-            mlflow.log_metric("elapsed_time", elapsed_time, step=episode)
+            # mlflow.log_metric("elapsed_time", elapsed_time, step=episode)
         except ValueError:
             continue
         except TypeError:
