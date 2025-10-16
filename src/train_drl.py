@@ -92,8 +92,8 @@ F_LOSS = nn.MSELoss()
 # ========================
 if torch.cuda.is_available():
     device = torch.device("cuda:1")
-elif torch.mps.is_available():
-    device = torch.device("mps")
+# elif torch.mps.is_available():
+#     device = torch.device("mps")
 else:
     device = torch.device("cpu")
 
@@ -463,8 +463,9 @@ def train(df, params):
 
         while True:
             initial_state, info = env.reset()
-            if info["sample_data_length"] <= 10_000:
-                break
+            break
+            # if info["sample_data_length"] <= 100_000:
+            #     break
         # logger.info(info["sample_data_length"])
 
         state = to_tensor(initial_state, include_category)
