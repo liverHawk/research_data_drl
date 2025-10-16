@@ -29,7 +29,7 @@ os.environ["MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING"] = "true"
 
 # 追加: デバイス設定を学習コードと同じロジックで統一
 if torch.cuda.is_available():
-    device = torch.device("cuda:1")
+    device = torch.device("cuda:0")
 elif torch.mps.is_available():
     device = torch.device("mps")
 else:

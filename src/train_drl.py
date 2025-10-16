@@ -91,9 +91,9 @@ F_LOSS = nn.MSELoss()
 # デバイス設定
 # ========================
 if torch.cuda.is_available():
-    device = torch.device("cuda:1")
-# elif torch.mps.is_available():
-#     device = torch.device("mps")
+    device = torch.device("cuda:0")
+elif torch.mps.is_available():
+    device = torch.device("mps")
 else:
     device = torch.device("cpu")
 
@@ -292,7 +292,7 @@ class MetricsLogger:
                 
             except Exception as e:
                 if self.queue.qsize() == 0:
-                    time.sleep(1000)
+                    time.sleep(10)
                     continue
                 continue
         
