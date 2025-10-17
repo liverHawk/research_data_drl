@@ -16,6 +16,7 @@ dependencies = [
     "azureml-core>=1.60.0.post1",
     "azureml-mlflow>=1.60.0",
     "dagshub>=0.6.3",
+    "nvidia-ml-py>=13.580.82",
 ]
 
 [tool.uv.sources]

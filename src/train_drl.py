@@ -90,12 +90,16 @@ F_LOSS = nn.MSELoss()
 # ========================
 # デバイス設定
 # ========================
-if torch.cuda.is_available():
-    device = torch.device("cuda:0")
-elif torch.mps.is_available():
-    device = torch.device("mps")
-else:
+try:
+    if torch.cuda.is_available():
+        device = torch.device("cuda:0")
+    elif torch.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+except Exception:
     device = torch.device("cpu")
+    print("Failed to set device, using CPU.")
 
 # ========================
 # ディレクトリ作成
@@ -490,7 +494,7 @@ def train(df, params):
 
         while True:
             initial_state, info = env.reset()
-            if max_data_length is None:
+            if type(max_data_length) != int:
                 break
             elif info["sample_data_length"] <= max_data_length:
                 break
@@ -523,18 +527,23 @@ def train(df, params):
             cm_memory.append(list(cm_index)) # list of [action, answer]
             total_data_count[int(cm_index[1])] += 1
 
-            next_state = to_tensor(raw_next_state, include_category) if not terminated else None
-            memory.push(state, action, next_state, preserve_reward)
-            state = next_state
+            upper_3_labels = sorted(total_data_count.items(), key=lambda x: x[1], reverse=True)[:3]
 
+            next_state = to_tensor(raw_next_state, include_category) if not terminated else None
+            state = next_state
+            if terminated:
+                break
+            episode_steps += 1
+
+            if select_params.steps_done >= 1_000:
+                if int(cm_index[1]) in [label for label, _ in upper_3_labels]:
+                    continue
+
+            memory.push(state, action, next_state, preserve_reward)
             if len(memory) > params.get("batch_size", 128):
                 loss = optimize_model(optimize_params)
                 episode_losses.append(loss)
             
-            episode_steps += 1
-
-            if terminated:
-                break
         p_bar.close()
 
         # エピソード終了後の最小限の処理
