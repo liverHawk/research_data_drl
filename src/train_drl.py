@@ -164,17 +164,29 @@ def _unpack_state_batch(state_batch, include_category=False):
 def select_action(state_tensor: torch.Tensor, params: SelectActionParams):
     """
     ε-greedy法による行動選択
+    state_tensor は単一サンプルを表す torch.Tensor または (port, protocol, features) のタプルを想定。
+    ネットワーク入力として必ずバッチ次元を持つように整形する。
     """
     sample = random.random()
     eps_threshold = params.EPS_END + (params.EPS_START - params.EPS_END) * np.exp(-1. * params.steps_done / params.EPS_DECAY)
-    # state_tensorはリスト形式（[port, protocol, other]）
+
     if sample > eps_threshold:
         with torch.no_grad():
-            q_vals = params.policy_net(state_tensor)
-            # ネットワークが (n_actions,) を返す場合にバッチ次元 (1, n_actions) を追加
+            # 入力をネットワーク向けに整形（バッチ次元を追加）
+            input_to_net = state_tensor
+            if isinstance(state_tensor, (list, tuple)):
+                input_to_net = tuple(
+                    s.unsqueeze(0) if isinstance(s, torch.Tensor) and s.dim() == 1 else s
+                    for s in state_tensor
+                )
+            elif isinstance(state_tensor, torch.Tensor) and state_tensor.dim() == 1:
+                input_to_net = state_tensor.unsqueeze(0)
+
+            q_vals = params.policy_net(input_to_net)
             if q_vals.dim() == 1:
                 q_vals = q_vals.unsqueeze(0)
-            return q_vals.max(1).indices.view(1, 1)
+            # 返り値を形 (1,1) の long tensor として返す（device を揃える）
+            return q_vals.max(1).indices.view(1, 1).to(device)
     else:
         return torch.tensor(
             [[random.randrange(params.n_actions)]],
@@ -416,7 +428,7 @@ def train(df, params):
         label_column="Label",
         render_mode=None,
         max_steps=drl_options.get("max_steps", 100),
-        normalize_method="rolling",
+        normalize_method="minmax",
         rolling_window=drl_options.get("rolling_window", 10),
     )
     mlflow.log_params({
@@ -428,6 +440,7 @@ def train(df, params):
 
     n_states = env.observation_space.shape[0]
     n_actions = env.action_space.n
+    logger.info(f"State space: {n_states}, Action space: {n_actions}")
 
     include_category = params.get("include_category", True)
 
@@ -488,10 +501,11 @@ def train(df, params):
 
         while True:
             initial_state, info = env.reset()
-            if max_data_length is None:
+            if max_data_length is None or type(max_data_length) != int:
                 break
             elif info["sample_data_length"] <= max_data_length:
                 break
+            logger.info(f"Rechoosing episode {i_episode} due to data length {info['sample_data_length']} > {max_data_length}")
         # logger.info(info["sample_data_length"])
 
         state = to_tensor(initial_state, include_category)

@@ -82,7 +82,9 @@ def fast_process(df, type="normal"):
         # IP文字列→整数
         df['Dst IP'] = df['Dst IP'].apply(lambda x: int(ip.IPv4Address(x)))
     # 欠損／無限大落とし
-    return df.replace([np.inf, -np.inf], np.nan).dropna()
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.dropna()
+    return df
 
 
 def load_data(path):
@@ -114,6 +116,11 @@ def column_adjustment(df):
         )
     }
     df = df.rename(columns=rename_dict)
+
+    for col in df.columns:
+        if col == "Label":
+            continue
+        df = df[df[col] >= 0]
 
     le = LabelEncoder()
     df["Label"] = le.fit_transform(df["Label"])

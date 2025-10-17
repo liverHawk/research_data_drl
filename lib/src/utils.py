@@ -201,3 +201,18 @@ def rolling_normalize(df: pd.DataFrame):
     X_norm[cols] = X_norm[cols].fillna(0.0)
     X_norm = X_norm.replace([np.inf, -np.inf], 0.0)
     return X_norm
+
+def torch_device():
+    import torch
+
+    try:
+        if torch.cuda.is_available():
+            device = torch.device("cuda:0")
+        elif torch.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+    except Exception:
+        device = torch.device("cpu")
+    
+    return device

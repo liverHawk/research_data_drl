@@ -1314,8 +1314,8 @@ wheels = [
 
 [[package]]
 name = "flow-package"
-version = "0.1.10"
-source = { git = "https://github.com/Perpetuactivity/flow_package.git?branch=upgrade#d4d0b714d41e10852e94aed1cc7b53c8fe7cf3de" }
+version = "0.1.19"
+source = { git = "https://github.com/Perpetuactivity/flow_package.git?branch=upgrade#6024753396c4dfa6d0905a759383611ced3eb7d4" }
 dependencies = [
     { name = "gymnasium" },
     { name = "matplotlib" },
@@ -1323,6 +1323,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pathlib" },
     { name = "scikit-learn" },
+    { name = "torch" },
 ]
 
 [[package]]
@@ -2698,7 +2699,7 @@ wheels = [
 
 [[package]]
 name = "myself"
-version = "0.0.20"
+version = "0.0.21"
 source = { editable = "lib" }
 dependencies = [
     { name = "coloredlogs" },
