@@ -1,7 +1,7 @@
 #!/bin/sh
 MSG_FILE="$1"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
-PYPROJECT="$REPO_ROOT/lib/pyproject.toml"
+PYPROJECT="$REPO_ROOT/pyproject.toml"
 SCRIPT="$REPO_ROOT/scripts/bump_version.py"
 
 # ステージされたファイルに lib/ 以下のファイルがなければ何もしない

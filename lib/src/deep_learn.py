@@ -1,6 +1,15 @@
 from collections import namedtuple, deque
 import random
 import numpy as np
+from dataclasses import dataclass
+
+
+@dataclass
+class TransactionBatch:
+    states: list
+    actions: list
+    next_states: list
+    rewards: list
 
 
 Transaction = namedtuple('Transaction', ('state', 'action', 'next_state', 'reward'))
@@ -18,6 +27,10 @@ class ReplayMemory(object):
 
     def __len__(self):
         return len(self.memory)
+    
+    def push_batch(self, batch: TransactionBatch):
+        for z in zip(batch.states, batch.actions, batch.next_states, batch.rewards):
+            self.push(*z)
 
 
 def moving_average(data, window_size):
