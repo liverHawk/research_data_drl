@@ -415,13 +415,11 @@ def train(df, params):
         data=df,
         label_column="Label",
         render_mode=None,
-        window_size=drl_options.get("window_size", 10),
-        max_steps=drl_options.get("max_steps", 100),
-        normalize_method="rolling",
+        max_steps=drl_options.get("max_steps", 10000),
+        normalize_method="minmax",
         rolling_window=drl_options.get("rolling_window", 10),
     )
     mlflow.log_params({
-        "window_size": input.window_size,
         "max_steps": input.max_steps,
         "normalize_method": input.normalize_method,
         "rolling_window": input.rolling_window,
