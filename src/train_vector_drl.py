@@ -82,7 +82,7 @@ def _moving_average(data, window_size):
     return np.convolve(data, weights, mode='valid')
 
 
-def _enhanced_plot_loss(loss_list, episode=None):
+def _enhanced_plot_loss(loss_list, episode=None, save=True):
     """改良版のLossプロット関数"""
     clear_output(wait=True)
     
@@ -124,7 +124,11 @@ def _enhanced_plot_loss(loss_list, episode=None):
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue"))
     
     plt.tight_layout()
-    plt.show()
+    if save:
+        plt.savefig(f"loss_plot_{len(loss_list)}.png")
+
+    plt.close()
+    # plt.show()
 
 
 def _data_split(df, split_size=10):
@@ -178,7 +182,20 @@ class VectorDRL:
         transitions = self.memory.sample(self.BATCH_SIZE)
         batch = Transaction(*zip(*transitions))
 
-        state_batch = torch.tensor(batch.state, device=self.device)
+        # より効率的な方法：直接numpy配列として処理
+        if batch.state and len(batch.state) > 0:
+            # すべてのstateが同じ形状かチェック
+            state_shapes = [s.shape for s in batch.state if s is not None]
+            if state_shapes and all(shape == state_shapes[0] for shape in state_shapes):
+                # 同じ形状の場合、効率的にスタック
+                state_batch = torch.tensor(np.stack(batch.state), device=self.device)
+            else:
+                # 異なる形状の場合、従来の方法
+                state_batch = torch.tensor(np.array(batch.state), device=self.device)
+        else:
+            # 空の場合の処理
+            state_batch = torch.empty(0, device=self.device)
+        
         action_batch = torch.cat(batch.action).to(self.device).long().unsqueeze(1)
         reward_batch = torch.cat(batch.reward).to(self.device).float()
         non_final_mask = torch.tensor(
@@ -237,7 +254,7 @@ class VectorDRL:
     
     def _test_prepare(self):
         print("method _test_prepare is called")
-        self.test_data = self.test_data.sample(n=1000)
+        # self.test_data = self.test_data.sample(n=1000)
         self.test_data_split_dfs = _data_split(self.test_data, split_size=10)
         vector_envs_input = []
         for df in self.test_data_split_dfs:
@@ -276,10 +293,12 @@ class VectorDRL:
             if len(self.memory) > self.BATCH_SIZE:
                 loss = self._optimize_model()
                 loss_list.append(loss)
-                if step % 5 == 0:
-                    _enhanced_plot_loss(loss_list)
+                if (step + 1) % 100 == 0:
+                    _enhanced_plot_loss(loss_list, save=False)
+                    print(f"loss: {loss}")
 
             obs_tensor = torch.tensor(next_obs, device=self.device)
+        _enhanced_plot_loss(loss_list, save=True)
 
     def test(self):
         print("method test is called")
@@ -290,22 +309,47 @@ class VectorDRL:
         result_list = []
 
         print("start testing")
-        print(infos["data_length"])
+        print(f"data_length: {infos['data_length']}")
+        print(f"obs shape: {obs.shape}")
 
         try:
+            step_count = 0
             while True:
-                pred = self.policy_net(obs_tensor)
-                actions = pred.argmax(dim=1)
-                next_obs, rewards, terminated, truncated, infos = self.test_envs.step(actions)
+                with torch.no_grad():
+                    pred = self.policy_net(obs_tensor)
+                    actions = pred.argmax(dim=1)
+                
+                # print(f"Step {step_count}: actions={actions.cpu().numpy()}")
+                
+                try:
+                    next_obs, rewards, terminated, truncated, infos = self.test_envs.step(actions)
+                except ValueError as ve:
+                    print(f"ValueError at step {step_count}: {ve}")
+                    print(f"actions: {actions.cpu().numpy()}")
+                    print(f"obs_tensor shape: {obs_tensor.shape}")
+                    print(f"infos keys: {infos.keys() if infos else 'None'}")
+                    raise ve
+                
+                # 観測値の形状を確認
+                # if isinstance(next_obs, np.ndarray):
+                #     print(f"Step {step_count}: next_obs shape: {next_obs.shape}")
+                # else:
+                #     print(f"Step {step_count}: next_obs type: {type(next_obs)}")
+                
                 obs_tensor = torch.tensor(next_obs, device=self.device, dtype=torch.float32)
 
                 for item in infos["matrix_position"]:
                     result_list.append(item)
-                print(f"{len(result_list)} : {infos['steps']}")
+                # print(f"{len(result_list)} : {infos['steps']}")
+                
+                step_count += 1
                 if self.test_envs.finished_envs.all():
                     break
+
         except Exception as e:
-            print()
+            print(f"Error at step {step_count}: {e}")
+            print(f"obs_tensor shape: {obs_tensor.shape}")
+            print(f"actions: {actions.cpu().numpy()}")
             raise e
         return result_list
     
@@ -330,7 +374,7 @@ def main():
 
     vector_drl = VectorDRL(vector_drl_config)
     print("Training...")
-    vector_drl.train(n_steps=20)
+    vector_drl.train(n_steps=10000)
     print("Testing...")
     result_list = vector_drl.test()
     with open("result.csv", "w") as f:
