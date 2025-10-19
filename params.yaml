@@ -36,9 +36,9 @@ train_drl:
   eps_decay: 10000000
   tau: 0.005
   lr: 0.001
-  memory_size: 100000
+  memory_size: 1000000
   n_episodes: 100
-  max_data_length: 1000
+  max_data_length: None
 
 evaluate_drl:
   include_category: False
