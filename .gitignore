@@ -5,3 +5,4 @@ build
 /nb/test_data
 config.json
 __pycache__
+.ipynb_checkpoints

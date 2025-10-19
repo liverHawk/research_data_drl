@@ -6,7 +6,7 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
+# import seaborn as sns
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.utils as utils
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from glob import glob
 from IPython.display import clear_output
 from torch.amp import GradScaler
-from tqdm import tqdm
+# from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from deep_learn import ReplayMemory, Transaction, TransactionBatch
 from network_v2 import DeepFlowNetworkV2
