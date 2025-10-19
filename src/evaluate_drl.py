@@ -131,9 +131,8 @@ def test(df, all_params):
         data=df,
         label_column="Label",
         render_mode=None,
-        window_size=drl_options.get("window_size", 10),
-        max_steps=drl_options.get("max_steps", 100),
-        normalize_method="rolling",
+        max_steps=drl_options.get("max_steps", 100000),
+        normalize_method="minmax",
         rolling_window=drl_options.get("rolling_window", 10),
         test_mode=True,
     )
