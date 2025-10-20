@@ -1,8 +1,6 @@
 import os
 import mlflow
 import yaml
-import cProfile
-import pstats
 
 from glob import glob
 import pandas as pd
@@ -130,11 +128,11 @@ def main():
     make_dir()
     params = load_params()
     logger = setup_logging(
-        os.path.join("log", "categorical_binary.log")
+        os.path.join("result", "log", "categorical_binary.log")
     )
     mlflow.start_run()
 
-    logger.info(f"Loading data from data/train/raw")
+    logger.info("Loading data from data/train/raw")
     df = load_data()
     logger.info(f"Data loaded with shape: {df.shape}")
 

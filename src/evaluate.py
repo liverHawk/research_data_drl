@@ -11,7 +11,7 @@ from classifier import ImprovedC45
 from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential
 
-from lib.src.statistics import get_statistics
+from classification_statistics import get_statistics
 
 # mlflow.tracking.fluent.disable_logged_model()
 
@@ -71,7 +71,7 @@ def load_data(data_path):
 
 def evaluate(df, params, logger):
     model = ImprovedC45(
-        load_path=os.path.abspath(os.path.join("model", "improved_c45_model.joblib"))
+        load_path=os.path.abspath(os.path.join("models", "improved_c45_model.joblib"))
     )
     # samples = df.head()
     # signature = mlflow.models.infer_signature(
@@ -95,7 +95,7 @@ def evaluate(df, params, logger):
 
     for key in statistics_keys:
         with open(f"result/evaluate/evaluate_{key}.txt", "w") as f:
-            f.write(statistics[key])
+            f.write(str(statistics[key]))
         mlflow.log_artifact(f"result/evaluate/evaluate_{key}.txt", artifact_path="evaluate")
     
     logger.info("Evaluation completed.")

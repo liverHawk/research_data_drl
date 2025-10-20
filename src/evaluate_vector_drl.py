@@ -1,11 +1,16 @@
 import os
 import mlflow
 import yaml
+import pandas as pd
+import numpy as np
 from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential
 from drl_experiment import VectorDRL, TrainEnvConfig, VectorDRLConfig
 from utils import setup_logging
 
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 def setup_mlflow(all_params):
     mlflow_params = all_params["mlflow"]
@@ -33,20 +38,38 @@ def setup_mlflow(all_params):
     
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     mlflow.set_experiment(
-        f"{mlflow_params['experiment_name']}_train_vector_drl"
+        f"{mlflow_params['experiment_name']}_evaluate_vector_drl"
     )
 
 
 def load_params():
+    os.makedirs("result/evaluate_vector_drl", exist_ok=True)
     all_params = yaml.safe_load(open("params.yaml"))
     setup_mlflow(all_params)
     return all_params
 
 
+def _plot_confusion_matrix():
+    df = pd.read_csv("result.csv")
+    cm = confusion_matrix(df["actual"], df["action"])
+    
+    same_shape_matrix = np.zeros(cm.shape)
+    for i in range(cm.shape[1]):
+        same_shape_matrix[:, i] = cm[:, i] / float(cm[:, i].sum())
+    
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(same_shape_matrix, annot=True, fmt='.3f', cmap='Blues')
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    plt.title('Confusion Matrix')
+    path = os.path.join("result", "evaluate_vector_drl", "confusion_matrix.png")
+    plt.savefig(path)
+    mlflow.log_artifact(path, artifact_path="evaluate_vector_drl")
+
 def main():
     params = load_params()
     logger = setup_logging(
-        os.path.abspath(os.path.join("result", "log", "train_vector_drl.log"))
+        os.path.abspath(os.path.join("result", "log", "evaluate_vector_drl.log"))
     )
     mlflow.pytorch.autolog()
     mlflow.start_run()
@@ -66,13 +89,19 @@ def main():
 
     logger.info("Initializing VectorDRL...")
     vector_drl = VectorDRL(vector_drl_config)
-    logger.info("Training...")
-    vector_drl.train(n_steps=10000)
-    logger.info("Training completed.")
+    logger.info("Loading model...")
+    vector_drl.load_model(os.path.abspath(os.path.join("models")))
+    logger.info("Model loaded.")
 
-    logger.info("Saving model...")
-    vector_drl.save_model(os.path.abspath(os.path.join("models")))
-    logger.info("Model saved.")
+    logger.info("Evaluating...")
+    result_list = vector_drl.test(split_size=20)
+    with open("result.csv", "w") as f:
+        f.write("action,actual\n")
+        for result in result_list:
+            f.write(f"{result[0]},{result[1]}\n")
+    logger.info("Evaluation completed.")
+
+    _plot_confusion_matrix()
 
     mlflow.end_run()
     logger.info("MLflow run completed.")

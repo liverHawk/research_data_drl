@@ -61,7 +61,7 @@ def make_dir():
         os.path.join(path, "test", "raw"), exist_ok=True
     )
     os.makedirs(
-        os.path.join(path, "..", "log"), exist_ok=True
+        os.path.join(path, "..", "result", "log"), exist_ok=True
     )
 
 
@@ -160,16 +160,16 @@ def main():
     make_dir()
     params, data_path = load_params()
     logger = setup_logging(
-        os.path.join("log", "build_dataset.log")
+        os.path.join("result", "log", "build_dataset.log")
     )
     mlflow.start_run()
 
     logger.info("Start building dataset")
     df = load_data(data_path)
     logger.info(f"Loaded data from {data_path}")
-    logger.info(f"Start column adjustment")
+    logger.info("Start column adjustment")
     df = column_adjustment(df)
-    logger.info(f"Column adjustment finished")
+    logger.info("Column adjustment finished")
 
     train_df, test_df = train_test_split(
         df,
@@ -177,7 +177,7 @@ def main():
         random_state=params["random_state"],
         stratify=df["Label"]
     )
-    logger.info(f"Train/Test split finished")
+    logger.info("Train/Test split finished")
 
     save_csv(train_df, test_df, logger)
     

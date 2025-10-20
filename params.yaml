@@ -15,5 +15,15 @@ mlflow:
 build_dataset:
   test_size: 0.2
   random_state: 42
+sampling:
+  method:
+    type: "over" # "over", "under"
+    name: "random"
+    limit_place: 3
 train:
   max_depth: 3
+
+
+# sampling.method.name
+# over: "random", "smote", "adasyn", "borderline_smote", "kmeans_smote", "svmsmote"
+# under: "random", "cluster_centroid", "edited_nearest_neighbors", "repeated_edited_nearest_neighbors", "all_knn", "instance_hardness_threshold", "near_miss", "neighbourhood_cleaning_rule", "one_sided_selection", "tomek_links"

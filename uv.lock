@@ -1741,6 +1741,20 @@ wheels = [
 ]
 
 [[package]]
+name = "imbalanced-learn"
+version = "0.15.dev0"
+source = { git = "https://github.com/scikit-learn-contrib/imbalanced-learn#5a5f6d76a5f5f1f6f37b391d0322339e23ef7088" }
+dependencies = [
+    { name = "joblib" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "scikit-learn" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.16.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "threadpoolctl" },
+]
+
+[[package]]
 name = "importlib-metadata"
 version = "8.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2855,10 +2869,11 @@ wheels = [
 
 [[package]]
 name = "myself"
-version = "0.0.24"
+version = "0.0.27"
 source = { editable = "lib" }
 dependencies = [
     { name = "coloredlogs" },
+    { name = "imbalanced-learn" },
     { name = "joblib" },
     { name = "pandas" },
     { name = "scikit-learn" },
@@ -2871,6 +2886,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "coloredlogs", specifier = ">=15.0.1" },
+    { name = "imbalanced-learn", git = "https://github.com/scikit-learn-contrib/imbalanced-learn" },
     { name = "joblib", specifier = ">=1.5.2" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "scikit-learn", specifier = "<1.7.0" },

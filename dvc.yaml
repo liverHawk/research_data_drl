@@ -31,22 +31,60 @@ stages:
       - result/log/categorical_binary.log
       - data/train/binary
       - data/test/binary
+  sampling:
+    cmd: uv run src/sampling.py
+    deps:
+      - src/sampling.py
+      - data/train/sampled_binary
+      - data/train/sampled_raw
+    params:
+      - sampling.method.type
+      - sampling.method.name
+      - sampling.method.limit_place
+    outs:
+      - result/log/sampling.log
   train:
     cmd: uv run src/train.py ${data_path.train}
     deps:
       - src/train.py
       - ${data_path.train}
     params:
+      - data_path.train
       - train.max_depth
     outs:
       - result/log/train.log
-      - model/improved_c45_model.joblib
+      - models/improved_c45_model.joblib
   evaluate:
     cmd: uv run src/evaluate.py ${data_path.test}
     deps:
       - src/evaluate.py
-      - model/improved_c45_model.joblib
+      - models/improved_c45_model.joblib
       - ${data_path.test}
+    params:
+      - data_path.test
     outs:
       - result/log/evaluate.log
-  
+  train_vector_drl:
+    cmd: uv run src/train_vector_drl.py
+    deps:
+      - src/train_vector_drl.py
+      - data/train/binary
+      - data/test/binary
+    params:
+      - data_path.train
+      - data_path.test
+    outs:
+      - result/log/train_vector_drl.log
+      - models/policy_net.pth
+      - models/target_net.pth
+  evaluate_vector_drl:
+    cmd: uv run src/evaluate_vector_drl.py
+    deps:
+      - src/evaluate_vector_drl.py
+      - models/policy_net.pth
+      - models/target_net.pth
+    params:
+      - data_path.train
+      - data_path.test
+    outs:
+      - result/log/evaluate_vector_drl.log

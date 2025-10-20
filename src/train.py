@@ -45,7 +45,7 @@ def setup_mlflow(all_params):
 
 
 def make_dir():
-    model_path = os.path.abspath("model")
+    model_path = os.path.abspath(os.path.join("models"))
     os.makedirs(model_path, exist_ok=True)
 
 
@@ -84,7 +84,7 @@ def train(df, params, logger):
     logger.info("Model training completed.")
 
     logger.info("Logging model to MLflow...")
-    model_path = os.path.abspath(os.path.join("model", "improved_c45_model.joblib"))
+    model_path = os.path.abspath(os.path.join("models", "improved_c45_model.joblib"))
     model.save(model_path)
 
 
