@@ -49,7 +49,7 @@ def load_params():
     all_params = yaml.safe_load(open("params.yaml"))
     setup_mlflow(all_params)
 
-    return all_params["train"], data_path
+    return all_params, data_path
 
 
 def load_data(data_path):
@@ -84,7 +84,7 @@ def main():
     make_dir()
     params, data_path = load_params()
     logger = setup_logging(
-        os.path.abspath(os.path.join("log", "train.log"))
+        os.path.abspath(os.path.join("result", "log", "train.log"))
     )
 
     mlflow.start_run()

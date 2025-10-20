@@ -12,6 +12,7 @@ from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential
 
 
+
 def setup_mlflow(all_params):
     if all_params["mlflow"]["use_azure"]:
         path = os.path.join(os.path.dirname(__file__), "..", "config.json")
@@ -44,7 +45,7 @@ def load_params():
     all_params = yaml.safe_load(open("params.yaml"))
     setup_mlflow(all_params)
 
-    return all_params["categorical_binary"]
+    return all_params
 
 
 def load_data(_type="train"):
@@ -144,17 +145,6 @@ def main():
     save_csv(df, logger, _type="test")
     
     mlflow.end_run()
-    
-
-    # with open("categorical_binary.prof", "w") as f:
-    #     ps = pstats.Stats(pr, stream=f)
-    #     ps.sort_stats("cumulative")
-    #     ps.print_stats()
-    # with open("categorical_binary.prof", "w") as f:
-    #     ps = pstats.Stats(pr, stream=f)
-    #     ps.sort_stats("time")
-    #     ps.print_stats()
-
 
 
 if __name__ == "__main__":
