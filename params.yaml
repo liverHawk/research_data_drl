@@ -1,14 +1,14 @@
 data_path:
   raw: data/CICIDS2017_improved
-  train: data/train/raw
+  train: data/train/sampled_raw
   test: data/test/raw
 
 mlflow:
-  use_mlflow: True
-  record_platform: "local" # "azure", "dagshub", "local"
+  use_mlflow: true
+  record_platform: local   # "azure", "dagshub", "local"
 
-  dagshub_url: "https://dagshub.com/liverHawk/research_data_drl.mlflow"
-  local_url: "http://127.0.0.1:5000"
+  dagshub_url: https://dagshub.com/liverHawk/research_data_drl.mlflow
+  local_url: http://127.0.0.1:5000
 
   experiment_name: desktop_linux
 
@@ -16,9 +16,10 @@ build_dataset:
   test_size: 0.2
   random_state: 42
 sampling:
+  use_sampling: true
   method:
-    type: "over" # "over", "under"
-    name: "random"
+    type: over   # "over", "under"
+    name: random
     limit_place: 3
 train:
   max_depth: 3

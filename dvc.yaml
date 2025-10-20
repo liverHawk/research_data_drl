@@ -35,13 +35,15 @@ stages:
     cmd: uv run src/sampling.py
     deps:
       - src/sampling.py
-      - data/train/sampled_binary
-      - data/train/sampled_raw
+      - data/train/raw
+      - data/train/binary
     params:
       - sampling.method.type
       - sampling.method.name
       - sampling.method.limit_place
     outs:
+      - data/train/sampled_binary
+      - data/train/sampled_raw
       - result/log/sampling.log
   train:
     cmd: uv run src/train.py ${data_path.train}

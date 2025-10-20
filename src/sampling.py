@@ -56,6 +56,11 @@ def load_params():
     all_params = yaml.safe_load(open("params.yaml"))
     setup_mlflow(all_params)
 
+    if not all_params["sampling"]["use_sampling"]:
+        # code finish
+        print("Sampling finished")
+        exit(0)
+    
     return all_params["sampling"]["method"]
 
 
@@ -110,6 +115,7 @@ def call_over_sampling(df: pd.DataFrame, method_dict: dict):
         case _:
             raise ValueError(f"Invalid sampling method: {method_dict['name']}")
     
+    resample_df = resample_df.replace([np.inf, -np.inf], np.nan).dropna()
     return_df = pd.concat([resample_df, except_df])
     return return_df, props
 
@@ -197,3 +203,7 @@ def main():
     mlflow.start_run()
     sampling(params, logger)
     mlflow.end_run()
+
+
+if __name__ == "__main__":
+    main()
