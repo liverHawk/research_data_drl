@@ -62,4 +62,4 @@ def get_statistics(num_actions, prediction_values, prediction_actions, answer_ac
         "tpr": tpr,
         "classification_report": report,
         "confusion_matrix": cm
-    }
+    }, ["roc_auc", "fpr", "tpr", "classification_report", "confusion_matrix"]
