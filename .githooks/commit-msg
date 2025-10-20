@@ -35,7 +35,7 @@ if [ -x "$SCRIPT" ]; then
   python3 "$SCRIPT" --file "$PYPROJECT" --part "$PART" || exit 1
   uv sync || exit 1
   # timeout
-  timeout 10 git add "$PYPROJECT" "$REPO_ROOT/lib/uv.lock" "$REPO_ROOT/uv.lock"
+  timeout 10 git add "$PYPROJECT"
   if [ $? -ne 0 ]; then
     echo "git add failed"
     echo "Please add the files manually"
