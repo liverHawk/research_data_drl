@@ -53,10 +53,8 @@ def _get_device_name():
 
 
 def _check_config(config):
-    if not os.path.exists(config.train_data_path):
-        raise FileNotFoundError(f"Data path {config.train_data_path} does not exist")
-    if not os.path.exists(config.test_data_path):
-        raise FileNotFoundError(f"Data path {config.test_data_path} does not exist")
+    if not os.path.exists(config.train_data_path) or not os.path.exists(config.test_data_path):
+        raise FileNotFoundError(f"Data path {config.train_data_path} or {config.test_data_path} does not exist")
 
 
 def _load_data(data_path):
@@ -252,10 +250,10 @@ class VectorDRL:
         action_tensor = torch.where(mask, net_action, random_action_tensor)
         return action_tensor.unsqueeze(1)
     
-    def _test_prepare(self):
+    def _test_prepare(self, split_size=10):
         print("method _test_prepare is called")
         # self.test_data = self.test_data.sample(n=1000)
-        self.test_data_split_dfs = _data_split(self.test_data, split_size=10)
+        self.test_data_split_dfs = _data_split(self.test_data, split_size=split_size)
         vector_envs_input = []
         for df in self.test_data_split_dfs:
             config = EnvConfig(
@@ -295,21 +293,21 @@ class VectorDRL:
                 loss_list.append(loss)
                 if (step + 1) % 100 == 0:
                     _enhanced_plot_loss(loss_list, save=False)
-                    print(f"loss: {loss}")
+                    print(f"{step + 1} / {n_steps} : loss: {loss}")
 
             obs_tensor = torch.tensor(next_obs, device=self.device)
         _enhanced_plot_loss(loss_list, save=True)
 
-    def test(self):
+    def test(self, split_size=10):
         print("method test is called")
-        self._test_prepare()
+        self._test_prepare(split_size=split_size)
         obs, infos = self.test_envs.reset()
         obs_tensor = torch.tensor(obs, device=self.device, dtype=torch.float32)
 
         result_list = []
 
         print("start testing")
-        print(f"data_length: {infos['data_length']}")
+        print(f"data_length: {infos['data_length'].mean()}")
         print(f"obs shape: {obs.shape}")
 
         try:
@@ -345,6 +343,9 @@ class VectorDRL:
                 step_count += 1
                 if self.test_envs.finished_envs.all():
                     break
+                if step_count % 100 == 0:
+                    print(f"{step_count} / {infos['data_length']} : test in progress")
+            print(f"test completed: {step_count} steps")
 
         except Exception as e:
             print(f"Error at step {step_count}: {e}")
@@ -357,3 +358,7 @@ class VectorDRL:
         os.makedirs(dir_path, exist_ok=True)
         torch.save(self.policy_net.state_dict(), os.path.join(dir_path, "policy_net.pth"))
         torch.save(self.target_net.state_dict(), os.path.join(dir_path, "target_net.pth"))
+    
+    def load_model(self, dir_path):
+        self.policy_net.load_state_dict(torch.load(os.path.join(dir_path, "policy_net.pth")))
+        self.target_net.load_state_dict(torch.load(os.path.join(dir_path, "target_net.pth")))
