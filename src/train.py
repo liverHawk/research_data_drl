@@ -15,23 +15,32 @@ from azure.identity import DefaultAzureCredential
 
 
 def setup_mlflow(all_params):
-    if all_params["mlflow"]["use_azure"]:
-        path = os.path.join(os.path.dirname(__file__), "..", "config.json")
-        print(path)
-        ml_client = MLClient.from_config(
-            credential=DefaultAzureCredential(),
-            config_path=path
-        )
-        mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
-    else:
-        mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
-    if all_params["mlflow"]["use_dagshub"]:
-        import dagshub
-        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
+    mlflow_params = all_params["mlflow"]
+
+    if not mlflow_params["use_mlflow"]:
+        return
+    
+    match mlflow_params["record_platform"]:
+        case "azure":
+            path = os.path.join(os.path.dirname(__file__), "..", "config.json")
+            print(path)
+            ml_client = MLClient.from_config(
+                credential=DefaultAzureCredential(),
+                config_path=path
+            )
+            mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
+        case "dagshub":
+            import dagshub
+            dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
+            mlflow_tracking_uri = mlflow_params["dagshub_url"]
+        case "local":
+            mlflow_tracking_uri = mlflow_params["local_url"]
+        case _:
+            raise ValueError(f"Invalid record platform: {mlflow_params['record_platform']}")
     
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     mlflow.set_experiment(
-        f"{all_params['mlflow']['experiment_name']}_train"
+        f"{mlflow_params['experiment_name']}_train"
     )
 
 
