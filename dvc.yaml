@@ -1,19 +1,26 @@
 params:
-  - mlflow.tracking_uri
+  - mlflow.use_mlflow
+  - mlflow.record_platform
+  - mlflow.dagshub_url
+  - mlflow.local_url
   - mlflow.experiment_name
+  - data_path.raw
+  - data_path.train
+  - data_path.test
 
 stages:
   build_dataset:
-    cmd: uv run src/build_dataset.py data/${dataset_name}
+    cmd: uv run src/build_dataset.py ${data_path.raw}
     deps:
       - src/build_dataset.py
-      - data/${dataset_name}
+      - ${data_path.raw}
+    params:
+      - build_dataset.test_size
+      - build_dataset.random_state
     outs:
-      - log/build_dataset.log
+      - result/log/build_dataset.log
       - data/train/raw
       - data/test/raw
-    params:
-      - dataset_name
   categorical_binary:
     cmd: uv run src/categorical_binary.py
     deps:
@@ -21,64 +28,65 @@ stages:
       - data/train/raw
       - data/test/raw
     outs:
-      - log/categorical_binary.log
+      - result/log/categorical_binary.log
       - data/train/binary
       - data/test/binary
+  sampling:
+    cmd: uv run src/sampling.py
+    deps:
+      - src/sampling.py
+      - data/train/raw
+      - data/train/binary
+    params:
+      - sampling.method.type
+      - sampling.method.name
+      - sampling.method.limit_place
+    outs:
+      - data/train/sampled_binary
+      - data/train/sampled_raw
+      - result/log/sampling.log
   train:
-    cmd: uv run src/train.py ${train.data_path}
+    cmd: uv run src/train.py ${data_path.train}
     deps:
       - src/train.py
-      - ${train.data_path}
+      - ${data_path.train}
     params:
-      - train.data_path
+      - data_path.train
+      - train.max_depth
     outs:
-      - log/train.log
-      - model/improved_c45_model.joblib
+      - result/log/train.log
+      - models/improved_c45_model.joblib
   evaluate:
-    cmd: uv run src/evaluate.py ${evaluate.data_path}
+    cmd: uv run src/evaluate.py ${data_path.test}
     deps:
       - src/evaluate.py
-      - model/improved_c45_model.joblib
-      - ${evaluate.data_path}
+      - models/improved_c45_model.joblib
+      - ${data_path.test}
     params:
-      - evaluate.data_path
+      - data_path.test
     outs:
-      - log/evaluate.log
-  train_drl:
-    cmd: uv run src/train_drl.py ${train.data_path}
+      - result/log/evaluate.log
+  train_vector_drl:
+    cmd: uv run src/train_vector_drl.py
     deps:
-      - src/train_drl.py
-      - ${train.data_path}
+      - src/train_vector_drl.py
+      - data/train/binary
+      - data/test/binary
     params:
-      - train.data_path
-      - train_drl.protocol_dim
-      - train_drl.port_dim
-      - train_drl.update_target_steps
-      - train_drl.batch_size
-      - train_drl.gamma
-      - train_drl.eps_start
-      - train_drl.eps_end
-      - train_drl.eps_decay
-      - train_drl.tau
-      - train_drl.lr
-      - train_drl.memory_size
-      - train_drl.n_episodes
-      - train_drl.max_data_length
-      - train_drl.include_category
+      - data_path.train
+      - data_path.test
     outs:
-      - log/train_drl.log
-      - log/train_result.log
-      - model/drl_model.pth
-  evaluate_drl:
-    cmd: uv run src/evaluate_drl.py ${evaluate.data_path}
+      - result/log/train_vector_drl.log
+      - models/policy_net.pth
+      - models/target_net.pth
+  evaluate_vector_drl:
+    cmd: uv run src/evaluate_vector_drl.py
     deps:
-      - src/evaluate_drl.py
-      - model/drl_model.pth
-      - ${evaluate.data_path}
+      - src/evaluate_vector_drl.py
+      - models/policy_net.pth
+      - models/target_net.pth
     params:
-      - evaluate.data_path
-      - evaluate.plot
-      - evaluate_drl.include_category
+      - data_path.train
+      - data_path.test
     outs:
-      - log/evaluate_drl.log
-      - evaluate/plots
+      - result/log/evaluate_vector_drl.log

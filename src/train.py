@@ -15,28 +15,37 @@ from azure.identity import DefaultAzureCredential
 
 
 def setup_mlflow(all_params):
-    if all_params["mlflow"]["use_azure"]:
-        path = os.path.join(os.path.dirname(__file__), "..", "config.json")
-        print(path)
-        ml_client = MLClient.from_config(
-            credential=DefaultAzureCredential(),
-            config_path=path
-        )
-        mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
-    else:
-        mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
-    if all_params["mlflow"]["use_dagshub"]:
-        import dagshub
-        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
+    mlflow_params = all_params["mlflow"]
+
+    if not mlflow_params["use_mlflow"]:
+        return
+    
+    match mlflow_params["record_platform"]:
+        case "azure":
+            path = os.path.join(os.path.dirname(__file__), "..", "config.json")
+            print(path)
+            ml_client = MLClient.from_config(
+                credential=DefaultAzureCredential(),
+                config_path=path
+            )
+            mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
+        case "dagshub":
+            import dagshub
+            dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
+            mlflow_tracking_uri = mlflow_params["dagshub_url"]
+        case "local":
+            mlflow_tracking_uri = mlflow_params["local_url"]
+        case _:
+            raise ValueError(f"Invalid record platform: {mlflow_params['record_platform']}")
     
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     mlflow.set_experiment(
-        f"{all_params['mlflow']['experiment_name']}_train"
+        f"{mlflow_params['experiment_name']}_train"
     )
 
 
 def make_dir():
-    model_path = os.path.abspath("model")
+    model_path = os.path.abspath(os.path.join("models"))
     os.makedirs(model_path, exist_ok=True)
 
 
@@ -49,7 +58,7 @@ def load_params():
     all_params = yaml.safe_load(open("params.yaml"))
     setup_mlflow(all_params)
 
-    return all_params["train"], data_path
+    return all_params, data_path
 
 
 def load_data(data_path):
@@ -75,7 +84,7 @@ def train(df, params, logger):
     logger.info("Model training completed.")
 
     logger.info("Logging model to MLflow...")
-    model_path = os.path.abspath(os.path.join("model", "improved_c45_model.joblib"))
+    model_path = os.path.abspath(os.path.join("models", "improved_c45_model.joblib"))
     model.save(model_path)
 
 
@@ -84,7 +93,7 @@ def main():
     make_dir()
     params, data_path = load_params()
     logger = setup_logging(
-        os.path.abspath(os.path.join("log", "train.log"))
+        os.path.abspath(os.path.join("result", "log", "train.log"))
     )
 
     mlflow.start_run()

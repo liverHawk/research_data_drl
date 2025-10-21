@@ -10,11 +10,12 @@ stages:
       nfiles: 5
     - path: src/build_dataset.py
       hash: md5
-      md5: 549c485423c2baa7e0fe91f4409c4721
-      size: 5058
+      md5: 4071fae42bdb04d5b06f4e2fc1b41743
+      size: 5388
     params:
       params.yaml:
-        dataset_name: CICIDS2017_improved
+        build_dataset.random_state: 42
+        build_dataset.test_size: 0.2
     outs:
     - path: data/test/raw
       hash: md5
@@ -45,8 +46,8 @@ stages:
       nfiles: 15
     - path: src/categorical_binary.py
       hash: md5
-      md5: 1e2e21d47879a5186318408d3f93fd40
-      size: 4979
+      md5: 9895b877e866e5ab55dc875df4e90b24
+      size: 4956
     outs:
     - path: data/test/binary
       hash: md5
@@ -63,20 +64,20 @@ stages:
       md5: 17aedb0c7e3f3abd3ab94872bfd04f95
       size: 1243
   train:
-    cmd: uv run src/train.py data/train/binary
+    cmd: uv run src/train.py data/train/raw
     deps:
-    - path: data/train/binary
+    - path: data/train/raw
       hash: md5
       md5: f4b4146af943e5a8325f098fcf48d9b1.dir
       size: 145866811
       nfiles: 15
     - path: src/train.py
       hash: md5
-      md5: 432136c3c542f644b82f6d892315a05b
-      size: 2830
+      md5: c8107f7c2d706f7f2367c765f030a048
+      size: 3144
     params:
       params.yaml:
-        train.data_path: data/train/binary
+        train.max_depth: 3
     outs:
     - path: log/train.log
       hash: md5
@@ -87,9 +88,9 @@ stages:
       md5: a4729240f163d043f59562d8eee1df3e
       size: 5485
   evaluate:
-    cmd: uv run src/evaluate.py data/test/binary
+    cmd: uv run src/evaluate.py data/test/raw
     deps:
-    - path: data/test/binary
+    - path: data/test/raw
       hash: md5
       md5: fedab9dc4623fd68e6b21cda449e4818.dir
       size: 62498355
@@ -100,13 +101,10 @@ stages:
       size: 5485
     - path: src/evaluate.py
       hash: md5
-      md5: 0b809db2705c94c8d83db040f1223259
-      size: 3327
-    params:
-      params.yaml:
-        evaluate.data_path: data/test/binary
+      md5: 49862ac97ebafd04bc84df55848d7185
+      size: 3262
     outs:
-    - path: log/evaluate.log
+    - path: result/log/evaluate.log
       hash: md5
       md5: 7a59451e2a2f44ff90ac7bf5f93b62f0
       size: 132
