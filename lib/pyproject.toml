@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "myself"
-version = "0.0.22"
+version = "0.0.31"
 description = "local helper library"
 requires-python = ">=3.10"
 dependencies = [
     "coloredlogs>=15.0.1",
+    "imbalanced-learn",
     "joblib>=1.5.2",
     "pandas>=2.3.3",
     "scikit-learn<1.7.0",
@@ -17,3 +18,6 @@ dependencies = [
     "torch>=2.8.0",
     "tqdm>=4.67.1",
 ]
+
+[tool.uv.sources]
+imbalanced-learn = { git = "https://github.com/scikit-learn-contrib/imbalanced-learn" }

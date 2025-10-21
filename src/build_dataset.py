@@ -17,23 +17,32 @@ from csv_utils import save_split_csv, multiprocess_save_csv
 
 
 def setup_mlflow(all_params):
-    if all_params["mlflow"]["use_azure"]:
-        path = os.path.join(os.path.dirname(__file__), "..", "config.json")
-        print(path)
-        ml_client = MLClient.from_config(
-            credential=DefaultAzureCredential(),
-            config_path=path
-        )
-        mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
-    else:
-        mlflow_tracking_uri = all_params["mlflow"]["tracking_uri"]
-    if all_params["mlflow"]["use_dagshub"]:
-        import dagshub
-        dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
+    mlflow_params = all_params["mlflow"]
+
+    if not mlflow_params["use_mlflow"]:
+        return
+    
+    match mlflow_params["record_platform"]:
+        case "azure":
+            path = os.path.join(os.path.dirname(__file__), "..", "config.json")
+            print(path)
+            ml_client = MLClient.from_config(
+                credential=DefaultAzureCredential(),
+                config_path=path
+            )
+            mlflow_tracking_uri = ml_client.workspaces.get(ml_client.workspace_name).mlflow_tracking_uri
+        case "dagshub":
+            import dagshub
+            dagshub.init(repo_owner='liverHawk', repo_name='research_data_drl', mlflow=True)
+            mlflow_tracking_uri = mlflow_params["dagshub_url"]
+        case "local":
+            mlflow_tracking_uri = mlflow_params["local_url"]
+        case _:
+            raise ValueError(f"Invalid record platform: {mlflow_params['record_platform']}")
     
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     mlflow.set_experiment(
-        f"{all_params['mlflow']['experiment_name']}_build_dataset"
+        f"{mlflow_params['experiment_name']}_build_dataset"
     )
 
 
@@ -52,7 +61,7 @@ def make_dir():
         os.path.join(path, "test", "raw"), exist_ok=True
     )
     os.makedirs(
-        os.path.join(path, "..", "log"), exist_ok=True
+        os.path.join(path, "..", "result", "log"), exist_ok=True
     )
 
 
@@ -151,16 +160,16 @@ def main():
     make_dir()
     params, data_path = load_params()
     logger = setup_logging(
-        os.path.join("log", "build_dataset.log")
+        os.path.join("result", "log", "build_dataset.log")
     )
     mlflow.start_run()
 
     logger.info("Start building dataset")
     df = load_data(data_path)
     logger.info(f"Loaded data from {data_path}")
-    logger.info(f"Start column adjustment")
+    logger.info("Start column adjustment")
     df = column_adjustment(df)
-    logger.info(f"Column adjustment finished")
+    logger.info("Column adjustment finished")
 
     train_df, test_df = train_test_split(
         df,
@@ -168,7 +177,7 @@ def main():
         random_state=params["random_state"],
         stratify=df["Label"]
     )
-    logger.info(f"Train/Test split finished")
+    logger.info("Train/Test split finished")
 
     save_csv(train_df, test_df, logger)
     

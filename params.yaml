@@ -1,50 +1,30 @@
-dataset_name: CICIDS2017_improved
+data_path:
+  raw: data/CICIDS2017_improved
+  train: data/train/sampled_raw
+  test: data/test/raw
 
 mlflow:
-  # tracking_uri: "https://dagshub.com/liverHawk/research_data_drl.mlflow"
-  tracking_uri: "http://127.0.0.1:5000"
-  experiment_name: toshi_pro
-  use_azure: False
-  use_dagshub: False
+  use_mlflow: true
+  record_platform: local   # "azure", "dagshub", "local"
+
+  dagshub_url: https://dagshub.com/liverHawk/research_data_drl.mlflow
+  local_url: http://127.0.0.1:5000
+
+  experiment_name: desktop_linux
 
 build_dataset:
-  test_size: 0.3
+  test_size: 0.2
   random_state: 42
-
-categorical_binary:
-  sample: True
-
+sampling:
+  use_sampling: true
+  method:
+    type: over   # "over", "under"
+    name: random
+    limit_place: 3
 train:
-  data_path: data/train/binary
-  model_type: RandomForest
+  max_depth: 3
 
-evaluate:
-  data_path: data/test/binary
-  plot: True
 
-train_drl:
-  protocol_dim: 8
-  port_dim: 32
-# data_path : binary -> include_category: False
-  include_category: False
-
-  update_target_steps: 200
-  batch_size: 16
-  gamma: 0.99
-  eps_start: 0.9
-  eps_end: 0.05
-  eps_decay: 10000000
-  tau: 0.005
-  lr: 0.001
-  memory_size: 1000000
-  n_episodes: 100
-  max_data_length: None
-
-evaluate_drl:
-  include_category: False
-  test: 10
-
-drl_options:
-  window_size: 10
-  max_steps: 100
-  rolling_window: 10
+# sampling.method.name
+# over: "random", "smote", "adasyn", "borderline_smote", "kmeans_smote", "svmsmote"
+# under: "random", "cluster_centroid", "edited_nearest_neighbors", "repeated_edited_nearest_neighbors", "all_knn", "instance_hardness_threshold", "near_miss", "neighbourhood_cleaning_rule", "one_sided_selection", "tomek_links"
