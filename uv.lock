@@ -2856,7 +2856,7 @@ wheels = [
 
 [[package]]
 name = "myself"
-version = "0.0.31"
+version = "0.0.32"
 source = { editable = "lib" }
 dependencies = [
     { name = "coloredlogs" },
