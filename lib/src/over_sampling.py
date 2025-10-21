@@ -14,7 +14,7 @@ def _base_sampling(func, sampling_props: SamplingProps):
         sampling_props.df.drop(columns=[sampling_props.y_column_name]),
         sampling_props.df[sampling_props.y_column_name]
     )
-    df_resample = pd.concat([X, y])
+    df_resample = pd.concat([X, y], axis=1)
     return df_resample
 
 

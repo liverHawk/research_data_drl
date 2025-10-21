@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from glob import glob
 from IPython.display import clear_output
 from torch.amp import GradScaler
-# from tqdm import tqdm
+from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from deep_learn import ReplayMemory, Transaction, TransactionBatch
 from network_v2 import DeepFlowNetworkV2
@@ -80,7 +80,7 @@ def _moving_average(data, window_size):
     return np.convolve(data, weights, mode='valid')
 
 
-def _enhanced_plot_loss(loss_list, episode=None, save=True):
+def _enhanced_plot_loss(loss_list, episode=None, save=True, loss_save_path=None):
     """改良版のLossプロット関数"""
     clear_output(wait=True)
     
@@ -123,10 +123,9 @@ def _enhanced_plot_loss(loss_list, episode=None, save=True):
     
     plt.tight_layout()
     if save:
-        plt.savefig(f"loss_plot_{len(loss_list)}.png")
+        plt.savefig(f"{loss_save_path}/loss_plot_{len(loss_list)}.png")
 
     plt.close()
-    # plt.show()
 
 
 def _data_split(df, split_size=10):
@@ -272,10 +271,13 @@ class VectorDRL:
         print("method _test_prepare is finished")
 
 
-    def train(self, n_steps=1000):
+    def train(self, n_steps=1000, loss_save_path=None):
         loss_list = []
         obs, infos = self.train_envs.reset()
         obs_tensor = torch.tensor(obs, device=self.device)
+        
+        # プログレスバーの設定
+        pbar = tqdm(total=n_steps, desc="Training", unit="step")
 
         for step in range(n_steps):
             actions = self._select_action(obs_tensor)
@@ -293,10 +295,14 @@ class VectorDRL:
                 loss_list.append(loss)
                 if (step + 1) % 100 == 0:
                     _enhanced_plot_loss(loss_list, save=False)
+                    pbar.set_postfix({"loss": f"{loss:.4f}"})
                     print(f"{step + 1} / {n_steps} : loss: {loss}")
 
             obs_tensor = torch.tensor(next_obs, device=self.device)
-        _enhanced_plot_loss(loss_list, save=True)
+            pbar.update(1)  # プログレスバーを更新
+        
+        pbar.close()  # プログレスバーを閉じる
+        _enhanced_plot_loss(loss_list, save=True, loss_save_path=loss_save_path)
 
     def test(self, split_size=10):
         print("method test is called")
@@ -307,8 +313,12 @@ class VectorDRL:
         result_list = []
 
         print("start testing")
-        print(f"data_length: {infos['data_length'].mean()}")
+        print(f"data_length: {infos['data_length']}")
         print(f"obs shape: {obs.shape}")
+        
+        # プログレスバーの設定
+        max_steps = int(infos['data_length'][0])
+        pbar = tqdm(total=max_steps, desc="Testing", unit="step")
 
         try:
             step_count = 0
@@ -341,13 +351,18 @@ class VectorDRL:
                 # print(f"{len(result_list)} : {infos['steps']}")
                 
                 step_count += 1
+                pbar.update(1)  # プログレスバーを更新
+                
                 if self.test_envs.finished_envs.all():
                     break
                 if step_count % 100 == 0:
-                    print(f"{step_count} / {infos['data_length']} : test in progress")
+                    pbar.set_postfix({"completed": f"{step_count}/{max_steps}"})
+            
+            pbar.close()  # プログレスバーを閉じる
             print(f"test completed: {step_count} steps")
 
         except Exception as e:
+            pbar.close()  # エラー時もプログレスバーを閉じる
             print(f"Error at step {step_count}: {e}")
             print(f"obs_tensor shape: {obs_tensor.shape}")
             print(f"actions: {actions.cpu().numpy()}")

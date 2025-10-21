@@ -1,1 +1,7 @@
 /evaluate.log
+/build_dataset.log
+/categorical_binary.log
+/sampling.log
+/train.log
+/train_vector_drl.log
+/evaluate_vector_drl.log

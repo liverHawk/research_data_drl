@@ -66,6 +66,7 @@ stages:
       - data_path.test
     outs:
       - result/log/evaluate.log
+      - result/evaluate
   train_vector_drl:
     cmd: uv run src/train_vector_drl.py
     deps:

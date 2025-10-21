@@ -10,7 +10,7 @@ mlflow:
   dagshub_url: https://dagshub.com/liverHawk/research_data_drl.mlflow
   local_url: http://127.0.0.1:5000
 
-  experiment_name: desktop_linux
+  experiment_name: gpu
 
 build_dataset:
   test_size: 0.2
@@ -22,7 +22,7 @@ sampling:
     name: random
     limit_place: 3
 train:
-  max_depth: 3
+  max_depth: 5
 
 
 # sampling.method.name

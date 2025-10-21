@@ -91,6 +91,14 @@ def evaluate(df, params, logger):
     y_pred = model.predict(X)
     y_pred_proba = model.predict_proba(X)
 
+    y_pred = [int(action) for action in y_pred]
+    logger.info(f"y_pred: {y_pred[0]}, y_pred_proba: {y_pred_proba[0]}, y: {y[0]}")
+    # with open("result.csv", "w") as f:
+    #     f.write("prediction_probability,prediction_action,actual\n")
+    #     for i in range(len(y_pred)):
+    #         f.write(f"{y_pred_proba[i]},{y_pred[i]},{y[i]}\n")
+    
+
     statistics, statistics_keys = get_statistics(len(y.unique()), y_pred_proba, y_pred, y)
 
     for key in statistics_keys:
@@ -106,8 +114,12 @@ def main():
     logger = setup_logging(
         os.path.abspath(os.path.join("result", "log", "evaluate.log"))
     )
+    mlflow.start_run()
+    mlflow.log_param("data_path", data_path)
     df = load_data(data_path)
+    print(df["Label"].value_counts())
     evaluate(df, params, logger)
+    mlflow.end_run()
 
 
 if __name__ == "__main__":

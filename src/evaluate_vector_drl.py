@@ -50,11 +50,13 @@ def load_params():
 
 
 def _plot_confusion_matrix():
-    df = pd.read_csv("result.csv")
+    df = pd.read_csv("result/evaluate_vector_drl/result.csv")
     cm = confusion_matrix(df["actual"], df["action"])
     
     same_shape_matrix = np.zeros(cm.shape)
     for i in range(cm.shape[1]):
+        if cm[:, i].sum() == 0:
+            continue
         same_shape_matrix[:, i] = cm[:, i] / float(cm[:, i].sum())
     
     plt.figure(figsize=(10, 8))
@@ -95,7 +97,7 @@ def main():
 
     logger.info("Evaluating...")
     result_list = vector_drl.test(split_size=20)
-    with open("result.csv", "w") as f:
+    with open("result/evaluate_vector_drl/result.csv", "w") as f:
         f.write("action,actual\n")
         for result in result_list:
             f.write(f"{result[0]},{result[1]}\n")

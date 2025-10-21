@@ -67,7 +67,11 @@ def load_data(data_path):
     for f in files:
         df = pd.read_csv(f)
         dfs.append(df)
-    return pd.concat(dfs, ignore_index=True)
+    
+    df = pd.concat(dfs, ignore_index=True)
+    value_counts = df["Label"].value_counts()
+    value_counts.to_csv("result/value_counts.csv")
+    return df
 
 
 def train(df, params, logger):
@@ -79,7 +83,6 @@ def train(df, params, logger):
     y = df["Label"]
 
     logger.info("Training model...")
-    print(X.shape)
     model.fit(X, y)
     logger.info("Model training completed.")
 
@@ -100,7 +103,7 @@ def main():
 
     logger.info("Loading data...")
     df = load_data(data_path)
-    logger.info(f"Data shape: {df.shape}")
+    logger.info(f"Label value counts: {df['Label'].value_counts()}")
 
     train(df, params, logger)
 
