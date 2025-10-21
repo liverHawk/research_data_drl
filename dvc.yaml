@@ -55,6 +55,7 @@ stages:
       - train.max_depth
     outs:
       - result/log/train.log
+      - result/value_counts.csv
       - models/improved_c45_model.joblib
   evaluate:
     cmd: uv run src/evaluate.py ${data_path.test}
@@ -91,3 +92,4 @@ stages:
       - data_path.test
     outs:
       - result/log/evaluate_vector_drl.log
+      - result/evaluate_vector_drl

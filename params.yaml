@@ -19,7 +19,7 @@ sampling:
   use_sampling: true
   method:
     type: over   # "over", "under"
-    name: random
+    name: smote
     limit_place: 3
 train:
   max_depth: 5
