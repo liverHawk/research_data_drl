@@ -16,10 +16,12 @@ dependencies = [
     "azureml-core>=1.60.0.post1",
     "azureml-mlflow>=1.60.0",
     "dagshub>=0.6.3",
+    "dvc[gpg]>=3.63.0",
 ]
 
 [tool.uv.sources]
 myself = { workspace = true }
+# flow-package = { path = "../../github-main/flow_package" }
 flow-package = { git = "https://github.com/Perpetuactivity/flow_package.git", branch = "upgrade" }
 
 [tool.uv.workspace]

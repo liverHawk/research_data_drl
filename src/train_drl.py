@@ -427,7 +427,7 @@ def train(df, params):
         data=df,
         label_column="Label",
         render_mode=None,
-        max_steps=drl_options.get("max_steps", 100),
+        max_steps=drl_options.get("max_steps", 1000),
         normalize_method="minmax",
         rolling_window=drl_options.get("rolling_window", 10),
     )

@@ -132,7 +132,7 @@ def test(df, all_params):
         label_column="Label",
         render_mode=None,
         max_steps=drl_options.get("max_steps", 100),
-        normalize_method="rolling",
+        normalize_method="minmax",
         rolling_window=drl_options.get("rolling_window", 10),
         test_mode=True,
     )
