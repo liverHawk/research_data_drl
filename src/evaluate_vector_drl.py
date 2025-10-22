@@ -84,6 +84,7 @@ def main():
         rolling_window=10,
     )
     vector_drl_config = VectorDRLConfig(
+        device_number=params["cuda_device_number"],
         train_data_path=os.path.join(os.path.dirname(__file__), "..", params["data_path"]["train"]),
         test_data_path=os.path.join(os.path.dirname(__file__), "..", params["data_path"]["test"]),
         train_env_config=train_env_config,

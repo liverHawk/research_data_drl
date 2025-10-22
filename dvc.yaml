@@ -72,22 +72,31 @@ stages:
     cmd: uv run src/train_vector_drl.py
     deps:
       - src/train_vector_drl.py
-      - data/train/binary
-      - data/test/binary
+      - data/train
+      - data/test
     params:
+      - sampling.method.type
+      - sampling.method.name
+      - sampling.method.limit_place
       - data_path.train
       - data_path.test
     outs:
       - result/log/train_vector_drl.log
       - models/policy_net.pth
       - models/target_net.pth
+      - result/train_vector_drl
   evaluate_vector_drl:
     cmd: uv run src/evaluate_vector_drl.py
     deps:
       - src/evaluate_vector_drl.py
       - models/policy_net.pth
       - models/target_net.pth
+      - data/train
+      - data/test
     params:
+      - sampling.method.type
+      - sampling.method.name
+      - sampling.method.limit_place
       - data_path.train
       - data_path.test
     outs:

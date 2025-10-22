@@ -1,3 +1,5 @@
+cuda_device_number: 0
+
 data_path:
   raw: data/CICIDS2017_improved
   train: data/train/sampled_raw

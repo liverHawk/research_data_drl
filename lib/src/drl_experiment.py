@@ -34,16 +34,17 @@ class TrainEnvConfig:
 
 @dataclass
 class VectorDRLConfig:
+    device_number: int = 0
     train_data_path: str
     test_data_path: str
     train_env_config: TrainEnvConfig
 
 
-def _get_device_name():
+def _get_device_name(device_number: int = 0):
     # return "cpu"
     try:
         if torch.cuda.is_available():
-            return "cuda:0"
+            return f"cuda:{device_number}"
         elif torch.mps.is_available():
             return "mps"
         else:
@@ -145,8 +146,8 @@ def _data_split(df, split_size=10):
 
 
 class VectorDRL:
-    def __init__(self, config):
-        self.device = torch.device(_get_device_name())
+    def __init__(self, config: VectorDRLConfig):
+        self.device = torch.device(_get_device_name(config.device_number))
         _check_config(config)
 
         self.train_data = _load_data(config.train_data_path)
@@ -203,7 +204,8 @@ class VectorDRL:
         non_final_next_states = [s for s in batch.next_state if s is not None]
 
         if len(non_final_next_states) > 0:
-            next_state_batch = torch.tensor(non_final_next_states, device=self.device)
+            # numpy配列のリストを単一のnumpy配列に変換してからtensorに変換
+            next_state_batch = torch.tensor(np.array(non_final_next_states), device=self.device)
         else:
             next_state_batch = None
 

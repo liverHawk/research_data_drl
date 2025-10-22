@@ -26,23 +26,22 @@ from azure.identity import DefaultAzureCredential
 
 os.environ["MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING"] = "true"
 
-
-# 追加: デバイス設定を学習コードと同じロジックで統一
-if torch.cuda.is_available():
-    device = torch.device("cuda:0")
-elif torch.mps.is_available():
-    device = torch.device("mps")
-else:
-    device = torch.device("cpu")
+device = torch.device("cpu")
 
 
 def load_params():
+    global device
     if len(sys.argv) != 2:
         print("Usage: python src/evaluate_drl.py <input_file_directory>")
         sys.exit(1)
 
     input_path = sys.argv[1]
     all_params = yaml.safe_load(open("params.yaml"))
+
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{all_params["cuda_device_number"]}")
+    elif torch.mps.is_available():
+        device = torch.device("mps")
 
     setup_mlflow(all_params)
     # params = all_params["evaluate_drl"]

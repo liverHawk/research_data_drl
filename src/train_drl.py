@@ -90,16 +90,7 @@ F_LOSS = nn.MSELoss()
 # ========================
 # デバイス設定
 # ========================
-try:
-    if torch.cuda.is_available():
-        device = torch.device("cuda:0")
-    elif torch.mps.is_available():
-        device = torch.device("mps")
-    else:
-        device = torch.device("cpu")
-except Exception:
-    device = torch.device("cpu")
-    print("Failed to set device, using CPU.")
+device = torch.device("cpu")
 
 # ========================
 # ディレクトリ作成
@@ -114,12 +105,18 @@ def make_dirs():
 # パラメータ・入力パスのロード
 # ========================
 def load_params():
+    global device
     if len(sys.argv) != 2:
         print("Usage: python src/train_drl.py <input_file_directory>")
         sys.exit(1)
 
     input_path = sys.argv[1]
     all_params = yaml.safe_load(open("params.yaml"))
+
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{all_params["cuda_device_number"]}")
+    elif torch.mps.is_available():
+        device = torch.device("mps")
 
     setup_mlflow(all_params)
     # params = all_params["train_drl"]

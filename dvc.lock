@@ -234,20 +234,20 @@ stages:
   train_vector_drl:
     cmd: uv run src/train_vector_drl.py
     deps:
-    - path: data/test/binary
+    - path: data/test
       hash: md5
-      md5: 065f3e9cd49953d146532756a689747b.dir
-      size: 41676263
-      nfiles: 5
-    - path: data/train/binary
+      md5: 2f512e49e7d8a06a7acb09a5640f2834.dir
+      size: 82581164
+      nfiles: 11
+    - path: data/train
       hash: md5
-      md5: 95b6f6aaf69ec417019ae69ebc7a4400.dir
-      size: 166673671
-      nfiles: 17
+      md5: 4902d15ed9480d3cd316129afd93a9f7.dir
+      size: 738226546
+      nfiles: 77
     - path: src/train_vector_drl.py
       hash: md5
-      md5: 794c99027aed6f21aee6eead98448597
-      size: 2602
+      md5: d745bb09ca1a37f26aa0cfc2c2b3cbdf
+      size: 2770
     params:
       params.yaml:
         data_path.test: data/test/raw
@@ -255,26 +255,36 @@ stages:
     outs:
     - path: models/policy_net.pth
       hash: md5
-      md5: 1678e603353155d5d67dc3d1e70e798d
+      md5: 5c614d2000551c7fe00714e075ff4fa0
       size: 675897
     - path: models/target_net.pth
       hash: md5
-      md5: c810944cfcbfd1ed67a6b199fe778430
+      md5: bc323d60e592986908227fd59c0ad5e6
       size: 675897
     - path: result/log/train_vector_drl.log
       hash: md5
-      md5: 0ef00b1b5f974f7d46e808ffe1874e1b
+      md5: 7753b0d93d5106e8a28a64f093b88216
       size: 440
   evaluate_vector_drl:
     cmd: uv run src/evaluate_vector_drl.py
     deps:
+    - path: data/test
+      hash: md5
+      md5: 2f512e49e7d8a06a7acb09a5640f2834.dir
+      size: 82581164
+      nfiles: 11
+    - path: data/train
+      hash: md5
+      md5: 4902d15ed9480d3cd316129afd93a9f7.dir
+      size: 738226546
+      nfiles: 77
     - path: models/policy_net.pth
       hash: md5
-      md5: 1678e603353155d5d67dc3d1e70e798d
+      md5: 5c614d2000551c7fe00714e075ff4fa0
       size: 675897
     - path: models/target_net.pth
       hash: md5
-      md5: c810944cfcbfd1ed67a6b199fe778430
+      md5: bc323d60e592986908227fd59c0ad5e6
       size: 675897
     - path: src/evaluate_vector_drl.py
       hash: md5
@@ -287,10 +297,10 @@ stages:
     outs:
     - path: result/evaluate_vector_drl
       hash: md5
-      md5: aa7771bc27673ae098411095bec2adf8.dir
-      size: 2558647
+      md5: 233a9b0f855171fd0e446042846df5d3.dir
+      size: 2559817
       nfiles: 2
     - path: result/log/evaluate_vector_drl.log
       hash: md5
-      md5: 6e49e86b59aaf0506596103a30e6e775
+      md5: 882a99d172481c25a488e9615f262ee5
       size: 446
