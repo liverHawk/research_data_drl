@@ -5,3 +5,6 @@ __pycache__
 .ipynb_checkpoints
 /mlruns
 /mlartifacts
+data/*
+!data/train
+!data/test

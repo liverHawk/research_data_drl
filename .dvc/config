@@ -1,3 +1,5 @@
+['studio']
+    url = https://studio.iterative.ai
 [core]
     remote = dags
     autostage = true
