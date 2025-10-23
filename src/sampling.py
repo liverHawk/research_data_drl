@@ -115,16 +115,19 @@ def call_over_sampling(df: pd.DataFrame, method_dict: dict):
         case _:
             raise ValueError(f"Invalid sampling method: {method_dict['name']}")
     
-    resample_df = resample_df.replace([np.inf, -np.inf], np.nan).dropna()
-    return_df = pd.concat([resample_df, except_df], ignore_index=True)
+    if except_df is not None:
+        return_df = pd.concat([resample_df, except_df], ignore_index=True)
+    else:
+        return_df = resample_df
+    return_df = return_df.replace([np.inf, -np.inf], np.nan).dropna()
     return return_df, props
 
 
 def call_under_sampling(df: pd.DataFrame, method_dict: dict):
     limit_under_place = method_dict["limit_place"]
+    original_label_count = len(df["Label"].unique())
 
     df, except_df = split_data(df, limit_under_place, "under")
-
     sampling_props = under_sampling.SamplingProps(df, "Label")
     match method_dict["name"]:
         case "random":
@@ -151,9 +154,12 @@ def call_under_sampling(df: pd.DataFrame, method_dict: dict):
             raise ValueError(f"Invalid sampling method: {method_dict['name']}")
     
     if except_df is not None:
-        return_df = pd.concat([resample_df, except_df])
+        return_df = pd.concat([resample_df, except_df], ignore_index=True)
     else:
         return_df = resample_df
+    return_df = return_df.replace([np.inf, -np.inf], np.nan).dropna()
+    if len(return_df["Label"].unique()) != original_label_count:
+        raise ValueError(f"Label count mismatch: {len(return_df['Label'].unique())} != {original_label_count}")
     return return_df, props
 
 
@@ -163,6 +169,27 @@ def sampling(params, logger):
     df_raw = load_data("train", "raw")
     logger.info("Data loaded")
 
+    # サンプリング前のデータセット情報を記録
+    mlflow.log_metric("original_binary_samples", len(df_binary))
+    mlflow.log_metric("original_raw_samples", len(df_raw))
+    mlflow.log_metric("original_binary_features", len(df_binary.columns))
+    mlflow.log_metric("original_raw_features", len(df_raw.columns))
+    
+    # クラス分布を記録
+    binary_class_counts = df_binary["Label"].value_counts()
+    raw_class_counts = df_raw["Label"].value_counts()
+    
+    for class_label, count in binary_class_counts.items():
+        mlflow.log_metric(f"original_binary_class_{class_label}_count", count)
+        mlflow.log_metric(f"original_binary_class_{class_label}_ratio", count / len(df_binary))
+    
+    for class_label, count in raw_class_counts.items():
+        mlflow.log_metric(f"original_raw_class_{class_label}_count", count)
+        mlflow.log_metric(f"original_raw_class_{class_label}_ratio", count / len(df_raw))
+
+    import time
+    start_time = time.time()
+    
     if params["type"] == "over":
         logger.info("Start sampling")
         resample_binary, props = call_over_sampling(df_binary, params)
@@ -177,6 +204,31 @@ def sampling(params, logger):
         mlflow.log_param("raw_props", props)
     else:
         raise ValueError(f"Invalid sampling method: {params['type']}")
+    
+    sampling_time = time.time() - start_time
+    mlflow.log_metric("sampling_time_seconds", sampling_time)
+    
+    # サンプリング後のデータセット情報を記録
+    mlflow.log_metric("sampled_binary_samples", len(resample_binary))
+    mlflow.log_metric("sampled_raw_samples", len(resample_raw))
+    
+    # サンプリング比率を計算
+    binary_ratio = len(resample_binary) / len(df_binary)
+    raw_ratio = len(resample_raw) / len(df_raw)
+    mlflow.log_metric("binary_sampling_ratio", binary_ratio)
+    mlflow.log_metric("raw_sampling_ratio", raw_ratio)
+    
+    # サンプリング後のクラス分布を記録
+    sampled_binary_class_counts = resample_binary["Label"].value_counts()
+    sampled_raw_class_counts = resample_raw["Label"].value_counts()
+    
+    for class_label, count in sampled_binary_class_counts.items():
+        mlflow.log_metric(f"sampled_binary_class_{class_label}_count", count)
+        mlflow.log_metric(f"sampled_binary_class_{class_label}_ratio", count / len(resample_binary))
+    
+    for class_label, count in sampled_raw_class_counts.items():
+        mlflow.log_metric(f"sampled_raw_class_{class_label}_count", count)
+        mlflow.log_metric(f"sampled_raw_class_{class_label}_ratio", count / len(resample_raw))
     
     mlflow.log_params(params)
     logger.info("Sampling finished")

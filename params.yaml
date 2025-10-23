@@ -20,11 +20,12 @@ build_dataset:
 sampling:
   use_sampling: true
   method:
-    type: over   # "over", "under"
-    name: smote
+    type: under   # "over", "under"
+    name: edited_nearest_neighbors
     limit_place: 3
 train:
   max_depth: 5
+split_size: 30
 
 
 # sampling.method.name

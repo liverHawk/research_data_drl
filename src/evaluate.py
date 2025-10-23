@@ -44,6 +44,8 @@ def setup_mlflow(all_params):
     mlflow.set_experiment(
         f"{mlflow_params['experiment_name']}_evaluate"
     )
+    mlflow.set_tags(all_params["sampling"]["method"])
+
 
 
 def load_params():
@@ -101,6 +103,7 @@ def evaluate(df, params, logger):
 
     statistics, statistics_keys = get_statistics(len(y.unique()), y_pred_proba, y_pred, y)
 
+    # メトリクスをMLflowに送信
     for key in statistics_keys:
         with open(f"result/evaluate/evaluate_{key}.txt", "w") as f:
             f.write(str(statistics[key]))
@@ -114,7 +117,7 @@ def main():
     logger = setup_logging(
         os.path.abspath(os.path.join("result", "log", "evaluate.log"))
     )
-    mlflow.start_run()
+    # mlflow.start_run()
     mlflow.log_param("data_path", data_path)
     df = load_data(data_path)
     print(df["Label"].value_counts())

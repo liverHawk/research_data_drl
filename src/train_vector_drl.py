@@ -35,6 +35,7 @@ def setup_mlflow(all_params):
     mlflow.set_experiment(
         f"{mlflow_params['experiment_name']}_train_vector_drl"
     )
+    mlflow.set_tags(all_params["sampling"]["method"])
 
 
 def load_params():
@@ -50,7 +51,7 @@ def main():
         os.path.abspath(os.path.join("result", "log", "train_vector_drl.log"))
     )
     mlflow.pytorch.autolog()
-    mlflow.start_run()
+    # mlflow.start_run()
 
     logger.info("Loading data...")
     train_env_config = TrainEnvConfig(
@@ -64,10 +65,12 @@ def main():
         train_data_path=os.path.join(os.path.dirname(__file__), "..", params["data_path"]["train"]),
         test_data_path=os.path.join(os.path.dirname(__file__), "..", params["data_path"]["test"]),
         train_env_config=train_env_config,
+        use_mlflow=params["mlflow"]["use_mlflow"],
     )
 
     logger.info("Initializing VectorDRL...")
     vector_drl = VectorDRL(vector_drl_config)
+
     logger.info("Training...")
     vector_drl.train(n_steps=10000, loss_save_path=os.path.abspath(os.path.join("result", "train_vector_drl")))
     logger.info("Training completed.")

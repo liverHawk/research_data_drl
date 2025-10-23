@@ -40,6 +40,9 @@ def setup_mlflow(all_params):
     mlflow.set_experiment(
         f"{mlflow_params['experiment_name']}_evaluate_vector_drl"
     )
+    # all_params["sampling"]["method"] is a dictionary
+    mlflow.set_tags(all_params["sampling"]["method"])
+
 
 
 def load_params():
@@ -55,9 +58,9 @@ def _plot_confusion_matrix():
     
     same_shape_matrix = np.zeros(cm.shape)
     for i in range(cm.shape[1]):
-        if cm[:, i].sum() == 0:
+        if cm[i, :].sum() == 0:
             continue
-        same_shape_matrix[:, i] = cm[:, i] / float(cm[:, i].sum())
+        same_shape_matrix[i, :] = cm[i, :] / float(cm[i, :].sum())
     
     plt.figure(figsize=(10, 8))
     sns.heatmap(same_shape_matrix, annot=True, fmt='.3f', cmap='Blues')
@@ -74,7 +77,7 @@ def main():
         os.path.abspath(os.path.join("result", "log", "evaluate_vector_drl.log"))
     )
     mlflow.pytorch.autolog()
-    mlflow.start_run()
+    # mlflow.start_run()
 
     logger.info("Loading data...")
     train_env_config = TrainEnvConfig(
@@ -97,12 +100,25 @@ def main():
     logger.info("Model loaded.")
 
     logger.info("Evaluating...")
-    result_list = vector_drl.test(split_size=20)
+    result_list = vector_drl.test(split_size=params.get("split_size", 20))
     with open("result/evaluate_vector_drl/result.csv", "w") as f:
         f.write("action,actual\n")
         for result in result_list:
             f.write(f"{result[0]},{result[1]}\n")
     logger.info("Evaluation completed.")
+
+    # 評価結果をメトリクスとして記録
+    df_result = pd.read_csv("result/evaluate_vector_drl/result.csv")
+    accuracy = (df_result['action'] == df_result['actual']).mean()
+    mlflow.log_metric("test_accuracy", accuracy)
+    mlflow.log_metric("test_samples", len(df_result))
+    
+    # 各クラスの精度を計算
+    for class_label in df_result['actual'].unique():
+        class_mask = df_result['actual'] == class_label
+        if class_mask.sum() > 0:
+            class_accuracy = (df_result.loc[class_mask, 'action'] == df_result.loc[class_mask, 'actual']).mean()
+            mlflow.log_metric(f"test_accuracy_class_{class_label}", class_accuracy)
 
     _plot_confusion_matrix()
 

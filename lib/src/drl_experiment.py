@@ -20,6 +20,7 @@ from sklearn.model_selection import train_test_split
 from deep_learn import ReplayMemory, Transaction, TransactionBatch
 from network_v2 import DeepFlowNetworkV2
 from flow_package.multi_df_env_v2 import MultiDfEnvV2, EnvConfig, TestEnvWrapper
+import mlflow
 
 
 @dataclass
@@ -38,6 +39,7 @@ class VectorDRLConfig:
     test_data_path: str
     train_env_config: TrainEnvConfig
     device_number: int = 0
+    use_mlflow: bool = False
 
 
 def _get_device_name(device_number: int = 0):
@@ -149,6 +151,7 @@ class VectorDRL:
     def __init__(self, config: VectorDRLConfig):
         self.device = torch.device(_get_device_name(config.device_number))
         _check_config(config)
+        self.use_mlflow = config.use_mlflow
 
         self.train_data = _load_data(config.train_data_path)
         self.test_data = _load_data(config.test_data_path)
@@ -173,9 +176,25 @@ class VectorDRL:
         self.memory = ReplayMemory(100000)
         self.BATCH_SIZE = 128
         self.GAMMA = 0.999
+        self.epsilon_start = 0.9
+        self.epsilon_end = 0.05
+        self.epsilon_decay = 200
         self.F_LOSS = nn.SmoothL1Loss()
         self.scaler = GradScaler() if torch.cuda.is_available() else None
     
+    def _set_epsilon_decay(self, n_steps: int):
+        if n_steps <= 1_000:
+            self.epsilon_decay = n_steps // 2
+        elif n_steps <= 5_000:
+            self.epsilon_decay = n_steps // 3
+        elif n_steps <= 10_000:
+            self.epsilon_decay = n_steps // 4
+        else:
+            self.epsilon_decay = n_steps // 5
+    
+    def _get_epsilon(self, step: int):
+        return self.epsilon_end + (self.epsilon_start - self.epsilon_end) * np.exp(-1. * step / self.epsilon_decay)
+
     def _optimize_model(self):
         transitions = self.memory.sample(self.BATCH_SIZE)
         batch = Transaction(*zip(*transitions))
@@ -236,8 +255,7 @@ class VectorDRL:
         
         return loss.item()
     
-
-    def _select_action(self, state_tensor: torch.Tensor):
+    def _select_action(self, step: int, state_tensor: torch.Tensor):
         random_float_list = np.random.rand(len(state_tensor))
 
         with torch.no_grad():
@@ -246,7 +264,7 @@ class VectorDRL:
         random_action = self.train_envs.action_space.sample()
         random_action_tensor = torch.tensor(random_action, device=self.device)
 
-        mask = torch.tensor(random_float_list > 0.5, device=self.device)
+        mask = torch.tensor(random_float_list > self._get_epsilon(step), device=self.device)
 
         action_tensor = torch.where(mask, net_action, random_action_tensor)
         return action_tensor.unsqueeze(1)
@@ -274,15 +292,17 @@ class VectorDRL:
 
 
     def train(self, n_steps=1000, loss_save_path=None):
+        self._set_epsilon_decay(n_steps)
         loss_list = []
         obs, infos = self.train_envs.reset()
         obs_tensor = torch.tensor(obs, device=self.device)
         
         # プログレスバーの設定
         pbar = tqdm(total=n_steps, desc="Training", unit="step")
+        log_interval = n_steps // 10
 
         for step in range(n_steps):
-            actions = self._select_action(obs_tensor)
+            actions = self._select_action(step, obs_tensor)
             next_obs, rewards, terminated, truncated, infos = self.train_envs.step(actions)
 
             preserve_rewards = torch.tensor(
@@ -295,16 +315,37 @@ class VectorDRL:
             if len(self.memory) > self.BATCH_SIZE:
                 loss = self._optimize_model()
                 loss_list.append(loss)
-                if (step + 1) % 100 == 0:
+                
+                if (step + 1) % log_interval == 0:
                     _enhanced_plot_loss(loss_list, save=False)
                     pbar.set_postfix({"loss": f"{loss:.4f}"})
-                    print(f"{step + 1} / {n_steps} : loss: {loss}")
+                    
+                    # MLflowにメトリクスを記録（100ステップごとのみ）
+                    if self.use_mlflow:
+                        current_loss = loss_list[-1] if loss_list else 0
+                        min_loss = min(loss_list) if loss_list else 0
+                        avg_loss = np.mean(loss_list) if loss_list else 0
+                        mlflow.log_metric("training_loss", current_loss, step=step)
+                        mlflow.log_metric("min_loss", min_loss, step=step)
+                        mlflow.log_metric("avg_loss", avg_loss, step=step)
+                        mlflow.log_metric("training_progress", (step + 1) / n_steps, step=step)
+                        mlflow.log_metric("memory_size", len(self.memory), step=step)
 
             obs_tensor = torch.tensor(next_obs, device=self.device)
             pbar.update(1)  # プログレスバーを更新
         
         pbar.close()  # プログレスバーを閉じる
         _enhanced_plot_loss(loss_list, save=True, loss_save_path=loss_save_path)
+        
+        # 学習完了時の最終メトリクスを記録（1回のみ）
+        if self.use_mlflow and loss_list:
+            final_loss = loss_list[-1]
+            min_loss = min(loss_list)
+            avg_loss = np.mean(loss_list)
+            mlflow.log_metric("final_loss", final_loss)
+            mlflow.log_metric("best_loss", min_loss)
+            mlflow.log_metric("average_loss", avg_loss)
+            mlflow.log_metric("total_training_steps", len(loss_list))
 
     def test(self, split_size=10):
         print("method test is called")
@@ -315,7 +356,7 @@ class VectorDRL:
         result_list = []
 
         print("start testing")
-        print(f"data_length: {infos['data_length']}")
+        print(f"data_length: {infos['data_length'][0]}")
         print(f"obs shape: {obs.shape}")
         
         # プログレスバーの設定
@@ -362,6 +403,12 @@ class VectorDRL:
             
             pbar.close()  # プログレスバーを閉じる
             print(f"test completed: {step_count} steps")
+            
+            # テスト完了時のメトリクスを記録（1回のみ）
+            if self.use_mlflow:
+                mlflow.log_metric("test_total_steps", step_count)
+                mlflow.log_metric("test_completion_rate", step_count / max_steps)
+                mlflow.log_metric("test_results_count", len(result_list))
 
         except Exception as e:
             pbar.close()  # エラー時もプログレスバーを閉じる

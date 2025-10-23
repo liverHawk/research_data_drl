@@ -140,6 +140,10 @@ class ImprovedC45:
         check_numeric_features(X)
         X = self._rolling_normalize(X)
         self.clf.fit(X, y)
+    
+    def score(self, X, y):
+        X = self._rolling_normalize(X)
+        return self.clf.score(X, y)
 
     def predict(self, X):
         X = self._rolling_normalize(X)

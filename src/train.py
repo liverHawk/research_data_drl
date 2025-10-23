@@ -42,6 +42,7 @@ def setup_mlflow(all_params):
     mlflow.set_experiment(
         f"{mlflow_params['experiment_name']}_train"
     )
+    mlflow.set_tags(all_params["sampling"]["method"])
 
 
 def make_dir():
@@ -82,9 +83,36 @@ def train(df, params, logger):
     X = df.drop(columns=["Label"])
     y = df["Label"]
 
+    # 学習前のデータセット情報を記録
+    mlflow.log_metric("train_samples", len(df))
+    mlflow.log_metric("train_features", len(X.columns))
+    mlflow.log_metric("train_classes", len(y.unique()))
+    
+    # クラス分布を記録
+    class_counts = y.value_counts()
+    for class_label, count in class_counts.items():
+        mlflow.log_metric(f"train_class_{class_label}_count", count)
+        mlflow.log_metric(f"train_class_{class_label}_ratio", count / len(y))
+
     logger.info("Training model...")
+    import time
+    start_time = time.time()
     model.fit(X, y)
+    training_time = time.time() - start_time
     logger.info("Model training completed.")
+
+    # 学習時間を記録
+    mlflow.log_metric("training_time_seconds", training_time)
+    
+    # 学習データでの性能をメトリクスとして記録
+    train_score = model.score(X, y)
+    mlflow.log_metric("train_accuracy", train_score)
+    
+    # モデルの複雑さを記録
+    if hasattr(model.clf, 'tree_'):
+        mlflow.log_metric("tree_depth", model.clf.tree_.max_depth)
+        mlflow.log_metric("tree_n_leaves", model.clf.tree_.n_leaves)
+        mlflow.log_metric("tree_n_nodes", model.clf.tree_.node_count)
 
     logger.info("Logging model to MLflow...")
     model_path = os.path.abspath(os.path.join("models", "improved_c45_model.joblib"))
@@ -99,7 +127,7 @@ def main():
         os.path.abspath(os.path.join("result", "log", "train.log"))
     )
 
-    mlflow.start_run()
+    # mlflow.start_run()
 
     logger.info("Loading data...")
     df = load_data(data_path)
