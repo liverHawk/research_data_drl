@@ -1,9 +1,9 @@
-cuda_device_number: 1
+cuda_device_number: 0
 
 data_path:
   raw: data/CICIDS2017_improved
-  train: data/train/sampled_raw
-  test: data/test/raw
+  train: data/train/sampled_binary
+  test: data/test/binary
 
 mlflow:
   use_mlflow: true
