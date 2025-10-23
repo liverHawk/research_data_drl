@@ -150,7 +150,10 @@ def call_under_sampling(df: pd.DataFrame, method_dict: dict):
         case _:
             raise ValueError(f"Invalid sampling method: {method_dict['name']}")
     
-    return_df = pd.concat([resample_df, except_df])
+    if except_df is not None:
+        return_df = pd.concat([resample_df, except_df])
+    else:
+        return_df = resample_df
     return return_df, props
 
 

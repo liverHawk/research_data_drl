@@ -34,10 +34,10 @@ class TrainEnvConfig:
 
 @dataclass
 class VectorDRLConfig:
-    device_number: int = 0
     train_data_path: str
     test_data_path: str
     train_env_config: TrainEnvConfig
+    device_number: int = 0
 
 
 def _get_device_name(device_number: int = 0):
