@@ -92,6 +92,10 @@ def main():
         test_data_path=os.path.join(os.path.dirname(__file__), "..", params["data_path"]["test"]),
         train_env_config=train_env_config,
     )
+    mlflow.log_params({
+        "train_path": params["data_path"]["train"],
+        "test_path": params["data_path"]["test"],
+    })
 
     logger.info("Initializing VectorDRL...")
     vector_drl = VectorDRL(vector_drl_config)

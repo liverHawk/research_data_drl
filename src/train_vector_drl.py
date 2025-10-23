@@ -67,6 +67,10 @@ def main():
         train_env_config=train_env_config,
         use_mlflow=params["mlflow"]["use_mlflow"],
     )
+    mlflow.log_params({
+        "train_path": params["data_path"]["train"],
+        "test_path": params["data_path"]["test"],
+    })
 
     logger.info("Initializing VectorDRL...")
     vector_drl = VectorDRL(vector_drl_config)
