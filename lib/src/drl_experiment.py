@@ -152,6 +152,8 @@ class VectorDRL:
         self.device = torch.device(_get_device_name(config.device_number))
         _check_config(config)
         self.use_mlflow = config.use_mlflow
+        if self.use_mlflow:
+            mlflow.pytorch.autolog()
 
         self.train_data = _load_data(config.train_data_path)
         self.test_data = _load_data(config.test_data_path)
