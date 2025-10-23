@@ -35,7 +35,10 @@ def setup_mlflow(all_params):
     mlflow.set_experiment(
         f"{mlflow_params['experiment_name']}_train_vector_drl"
     )
-    mlflow.set_tags(all_params["sampling"]["method"])
+    if all_params["sampling"]["use_sampling"]:
+        mlflow.set_tags(all_params["sampling"]["method"])
+    else:
+        mlflow.set_tag("sampling", "none")
 
 
 def load_params():
@@ -61,11 +64,13 @@ def main():
         rolling_window=10,
     )
     vector_drl_config = VectorDRLConfig(
-        device_number=int(params["cuda_device_number"]),
+        device_number=params["cuda_device_number"],
         train_data_path=os.path.join(os.path.dirname(__file__), "..", params["data_path"]["train"]),
         test_data_path=os.path.join(os.path.dirname(__file__), "..", params["data_path"]["test"]),
         train_env_config=train_env_config,
         use_mlflow=params["mlflow"]["use_mlflow"],
+        train_env_number=int(params["train_env_number"]),
+        use_async=params["use_async"],
     )
     mlflow.log_params({
         "train_path": params["data_path"]["train"],
@@ -76,7 +81,7 @@ def main():
     vector_drl = VectorDRL(vector_drl_config)
 
     logger.info("Training...")
-    vector_drl.train(n_steps=10000, loss_save_path=os.path.abspath(os.path.join("result", "train_vector_drl")))
+    vector_drl.train(n_steps=40000, loss_save_path=os.path.abspath(os.path.join("result", "train_vector_drl")))
     logger.info("Training completed.")
 
     logger.info("Saving model...")

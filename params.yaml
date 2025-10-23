@@ -2,7 +2,7 @@ cuda_device_number: 0
 
 data_path:
   raw: data/CICIDS2017_improved
-  train: data/train/sampled_binary
+  train: data/train/binary
   test: data/test/binary
 
 mlflow:
@@ -18,13 +18,15 @@ build_dataset:
   test_size: 0.2
   random_state: 42
 sampling:
-  use_sampling: true
+  use_sampling: false
   method:
     type: under   # "over", "under"
-    name: edited_nearest_neighbors
+    name: cluster_centroid
     limit_place: 3
 train:
   max_depth: 5
+train_env_number: 10
+use_async: false
 split_size: 30
 
 

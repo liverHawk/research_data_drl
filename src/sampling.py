@@ -46,20 +46,21 @@ def setup_mlflow(all_params):
 
 
 def make_dir():
-    train_binary_path = os.path.abspath(os.path.join("data", "train", "binary"))
-    os.makedirs(train_binary_path, exist_ok=True)
-    test_binary_path = os.path.abspath(os.path.join("data", "test", "binary"))
-    os.makedirs(test_binary_path, exist_ok=True)
+    binary_path = os.path.abspath(os.path.join("data", "train", "sampled_binary"))
+    raw_path = os.path.abspath(os.path.join("data", "train", "sampled_raw"))
+    os.makedirs(binary_path, exist_ok=True)
+    os.makedirs(raw_path, exist_ok=True)
 
 
 def load_params():
     all_params = yaml.safe_load(open("params.yaml"))
-    setup_mlflow(all_params)
 
     if not all_params["sampling"]["use_sampling"]:
         # code finish
+        make_dir()
         print("Sampling finished")
         exit(0)
+    setup_mlflow(all_params)
     
     return all_params["sampling"]["method"]
 
@@ -236,8 +237,7 @@ def sampling(params, logger):
     logger.info("Start saving data")
     binary_path = os.path.abspath(os.path.join("data", "train", "sampled_binary"))
     raw_path = os.path.abspath(os.path.join("data", "train", "sampled_raw"))
-    os.makedirs(binary_path, exist_ok=True)
-    os.makedirs(raw_path, exist_ok=True)
+
     
     binary_array = save_split_csv(resample_binary, binary_path, "sampled_binary")
     raw_array = save_split_csv(resample_raw, raw_path, "sampled_raw")
@@ -250,10 +250,10 @@ def sampling(params, logger):
 
 
 def main():
-    params = load_params()
     logger = setup_logging(
         os.path.join("result", "log", "sampling.log")
     )
+    params = load_params()
 
     mlflow.start_run()
     sampling(params, logger)

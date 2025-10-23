@@ -39,12 +39,16 @@ class VectorDRLConfig:
     test_data_path: str
     train_env_config: TrainEnvConfig
     device_number: int = 0
+    train_env_number: int = 7
     use_mlflow: bool = False
+    use_async: bool = False
 
 
-def _get_device_name(device_number: int = 0):
+def _get_device_name(device_number=0):
     # return "cpu"
     try:
+        if type(device_number) is not int:
+            return "cpu"
         if torch.cuda.is_available():
             return f"cuda:{device_number}"
         elif torch.mps.is_available():
@@ -166,7 +170,11 @@ class VectorDRL:
             normalize_method=config.train_env_config.normalize_method,
             rolling_window=config.train_env_config.rolling_window,
         )
-        self.train_envs = gym.vector.SyncVectorEnv([_make_envs(self.train_env_config) for _ in range(7)])
+        self.use_async = config.use_async
+        if self.use_async:
+            self.train_envs = gym.vector.AsyncVectorEnv([_make_envs(self.train_env_config) for _ in range(config.train_env_number)])
+        else:
+            self.train_envs = gym.vector.SyncVectorEnv([_make_envs(self.train_env_config) for _ in range(config.train_env_number)])
         self.n_states = self.train_envs.observation_space.shape[1]
         self.n_actions = self.train_envs.action_space[0].n
 
@@ -296,45 +304,57 @@ class VectorDRL:
     def train(self, n_steps=1000, loss_save_path=None):
         self._set_epsilon_decay(n_steps)
         loss_list = []
-        obs, infos = self.train_envs.reset()
+        if self.use_async:
+            self.train_envs.reset_async()
+            obs, infos = self.train_envs.reset_wait()
+        else:
+            obs, infos = self.train_envs.reset()
         obs_tensor = torch.tensor(obs, device=self.device)
         
         # プログレスバーの設定
         pbar = tqdm(total=n_steps, desc="Training", unit="step")
         log_interval = n_steps // 10
 
-        for step in range(n_steps):
-            actions = self._select_action(step, obs_tensor)
-            next_obs, rewards, terminated, truncated, infos = self.train_envs.step(actions)
+        try:
+            for step in range(n_steps):
+                actions = self._select_action(step, obs_tensor)
 
-            preserve_rewards = torch.tensor(
-                [[float(r)] for r in rewards],
-                dtype=torch.float32,
-                device=self.device,
-            )
-            self.memory.push_batch(TransactionBatch(obs, actions, next_obs, preserve_rewards))
+                if self.use_async:
+                    self.train_envs.step_async(actions)
+                    next_obs, rewards, terminated, truncated, infos = self.train_envs.step_wait()
+                else:
+                    next_obs, rewards, terminated, truncated, infos = self.train_envs.step(actions)
 
-            if len(self.memory) > self.BATCH_SIZE:
-                loss = self._optimize_model()
-                loss_list.append(loss)
-                
-                if (step + 1) % log_interval == 0:
-                    _enhanced_plot_loss(loss_list, save=False)
-                    pbar.set_postfix({"loss": f"{loss:.4f}"})
+                preserve_rewards = torch.tensor(
+                    [[float(r)] for r in rewards],
+                    dtype=torch.float32,
+                    device=self.device,
+                )
+                self.memory.push_batch(TransactionBatch(obs, actions, next_obs, preserve_rewards))
+
+                if len(self.memory) > self.BATCH_SIZE:
+                    loss = self._optimize_model()
+                    loss_list.append(loss)
                     
-                    # MLflowにメトリクスを記録（100ステップごとのみ）
-                    if self.use_mlflow:
-                        current_loss = loss_list[-1] if loss_list else 0
-                        min_loss = min(loss_list) if loss_list else 0
-                        avg_loss = np.mean(loss_list) if loss_list else 0
-                        mlflow.log_metric("training_loss", current_loss, step=step)
-                        mlflow.log_metric("min_loss", min_loss, step=step)
-                        mlflow.log_metric("avg_loss", avg_loss, step=step)
-                        mlflow.log_metric("training_progress", (step + 1) / n_steps, step=step)
-                        mlflow.log_metric("memory_size", len(self.memory), step=step)
+                    if (step + 1) % log_interval == 0:
+                        _enhanced_plot_loss(loss_list, save=False)
+                        pbar.set_postfix({"loss": f"{loss:.4f}"})
+                        
+                        # MLflowにメトリクスを記録（100ステップごとのみ）
+                        if self.use_mlflow:
+                            current_loss = loss_list[-1] if loss_list else 0
+                            min_loss = min(loss_list) if loss_list else 0
+                            avg_loss = np.mean(loss_list) if loss_list else 0
+                            mlflow.log_metric("training_loss", current_loss, step=step)
+                            mlflow.log_metric("min_loss", min_loss, step=step)
+                            mlflow.log_metric("avg_loss", avg_loss, step=step)
+                            mlflow.log_metric("training_progress", (step + 1) / n_steps, step=step)
+                            mlflow.log_metric("memory_size", len(self.memory), step=step)
 
-            obs_tensor = torch.tensor(next_obs, device=self.device)
-            pbar.update(1)  # プログレスバーを更新
+                obs_tensor = torch.tensor(next_obs, device=self.device)
+                pbar.update(1)  # プログレスバーを更新
+        except Exception as e:
+            print(f"Error at step {step}: {e}")
         
         pbar.close()  # プログレスバーを閉じる
         _enhanced_plot_loss(loss_list, save=True, loss_save_path=loss_save_path)

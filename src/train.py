@@ -42,8 +42,10 @@ def setup_mlflow(all_params):
     mlflow.set_experiment(
         f"{mlflow_params['experiment_name']}_train"
     )
-    mlflow.set_tags(all_params["sampling"]["method"])
-
+    if all_params["sampling"]["use_sampling"]:
+        mlflow.set_tags(all_params["sampling"]["method"])
+    else:
+        mlflow.set_tag("sampling", "none")
 
 def make_dir():
     model_path = os.path.abspath(os.path.join("models"))
